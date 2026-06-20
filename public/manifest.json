@@ -1,0 +1,16 @@
+{
+  "name": "Triid - Artisan Emergency Dispatch",
+  "short_name": "Triid",
+  "description": "Artisan verification and smart-procurement platform.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ]
+}

@@ -62,6 +62,12 @@ The backend will be structured into distinct, decoupled modules to allow future 
 - [ ] SMS Gateway Fallback.
 - [ ] Demand prediction.
 
+### Phase 3: "LocalConnect" Ecosystem Integration (Future)
+- [ ] **Hybrid Trust Model**: Combine Triid's P2P community vouching graph with LocalConnect's dedicated admin "Verified" shield credentialing.
+- [ ] **Community Crowdsourcing**: Allow residents to submit unlisted local service providers to the directory to earn contribution points (XP) and rewards. 
+- [ ] **City-Wide Discovery Expansion**: Broaden the geographical matching logic to support wider city-level directory browsing beyond highly gated mega-communities.
+- [ ] **Consolidated Booking Management**: Merge LocalConnect's scheduling interface with Triid's escrow/payment backbone.
+
 ## 6. Next Steps
 1. **Awaiting UI Designs:** Evaluate incoming UI/UX specifications.
 2. **Setup Initialization:** Configure `tsconfig.json` and build scripts for `reflect-metadata` support required by NestJS (or structurally adapt an Express-based modular controller system). 

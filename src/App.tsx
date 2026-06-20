@@ -14,7 +14,16 @@ import { Onboarding } from '@/pages/onboarding/Onboarding';
 import { RoleSelection } from '@/pages/onboarding/RoleSelection';
 import { ResidentDashboard } from '@/pages/ResidentDashboard';
 import { EmergencyRequest } from '@/pages/resident/EmergencyRequest';
-import { ArtisanDashboard } from '@/pages/ArtisanDashboard';
+import { ArtisanLayout } from '@/pages/artisan/ArtisanLayout';
+import { JobFeed } from '@/pages/artisan/JobFeed';
+import { EmergencyTakeover } from '@/pages/artisan/EmergencyTakeover';
+import { RequestDetails } from '@/pages/artisan/RequestDetails';
+import { EnRoute } from '@/pages/artisan/EnRoute';
+import { InProgress } from '@/pages/artisan/InProgress';
+import { WaitingConfirmation } from '@/pages/artisan/WaitingConfirmation';
+import { Wallet } from '@/pages/artisan/Wallet';
+import { ArtisanReports } from '@/pages/artisan/ArtisanReports';
+import { JobHistory } from '@/pages/artisan/JobHistory';
 
 import { ArtisanDirectory } from '@/pages/resident/ArtisanDirectory';
 import { ArtisanProfile } from '@/pages/resident/ArtisanProfile';
@@ -121,11 +130,23 @@ export default function App() {
             </ProtectedRoute>
           } />
           
-          <Route path="/artisan/dashboard" element={
-            <ProtectedRoute>
-              <ArtisanDashboard />
+          <Route path="/artisan" element={
+            <ProtectedRoute role="artisan">
+              <ArtisanLayout />
             </ProtectedRoute>
-          } />
+          }>
+            <Route path="dashboard" element={<JobFeed />} />
+            <Route path="requests/:id" element={<RequestDetails />} />
+            <Route path="en-route/:id" element={<EnRoute />} />
+            <Route path="in-progress/:id" element={<InProgress />} />
+            <Route path="waiting/:id" element={<WaitingConfirmation />} />
+            <Route path="history" element={<JobHistory />} />
+            <Route path="wallet" element={<Wallet />} />
+            <Route path="reports" element={<ArtisanReports />} />
+          </Route>
+
+          {/* Artisan Full Screen / Active Job Flows */}
+          <Route path="/artisan/emergency/:id" element={<ProtectedRoute role="artisan"><EmergencyTakeover /></ProtectedRoute>} />
         </Routes>
       </AuthProvider>
     </Router>
