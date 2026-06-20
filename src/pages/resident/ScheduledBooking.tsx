@@ -26,7 +26,8 @@ export function ScheduledBooking() {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
+          'Authorization': `Bearer ${session.access_token}`,
+          'Idempotency-Key': crypto.randomUUID()
         },
         body: JSON.stringify({
           mode: 'scheduled',

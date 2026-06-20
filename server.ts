@@ -67,6 +67,67 @@ async function startServer() {
   // --- API Routes (Modular Monolith Setup) ---
   const apiRouter = express.Router();
   
+  // Provide demo credentials and ensure they exist
+  apiRouter.post("/auth/demo", async (req, res) => {
+    try {
+      const { role } = req.body;
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      const email = role === 'artisan' ? 'demo_artisan@triid.app' : 'demo_resident@triid.app';
+      const password = 'DemoPassword123!';
+      const fullName = role === 'artisan' ? 'Chidi (Electrician)' : 'Jane (Resident)';
+
+      // Check if user exists by trying to sign in
+      const { data: signInData, error: signInError } = await adminClient.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (signInError && signInError.message.includes('Invalid login credentials')) {
+        // Create user
+        const { data: createUser, error: createError } = await adminClient.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: { full_name: fullName }
+        });
+        
+        if (createError) throw createError;
+
+        if (createUser.user) {
+          // ensure 'users' entry exists (which might be handled by trigger, but just in case)
+          // The schema triggers should handle it, but wait, do we have a trigger for new users?
+          // Let's assume we do, or we just insert it
+          const { error: insertUserErr } = await adminClient.from('users').upsert({
+            id: createUser.user.id,
+            email: email,
+            full_name: fullName,
+            role: role
+          });
+
+          if (role === 'artisan') {
+            await adminClient.from('artisan_profiles').upsert({
+              user_id: createUser.user.id,
+              skill_categories: ['electrical'],
+              bio: 'Expert electrician with 10 years of experience in Redemption City.',
+              starting_price_min: 5000,
+              starting_price_max: 20000,
+              trust_tier: 'verified',
+              verification_status: 'verified'
+            });
+          }
+        }
+      }
+
+      res.status(200).json({ email, password });
+    } catch(e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
   // Health
   apiRouter.get("/health", (req, res) => {
     res.json({ status: "ok", service: "triid-api", version: "1.0.0" });
@@ -252,6 +313,73 @@ async function startServer() {
      } catch(e: any) {
        res.status(500).json({ error: { message: e.message } });
      }
+  });
+
+  apiRouter.post("/artisans/verify-identity", async (req, res) => {
+    try {
+      const { nin } = req.body;
+      if (!nin) return res.status(400).json({ error: { message: "NIN is required" } });
+
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      // Service role client needed to safely perform verification insertions 
+      // without exposing write access to clients directly
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      // Get artisan profile
+      const { data: profile, error: profileErr } = await adminClient
+        .from('artisan_profiles')
+        .select('id, trust_tier')
+        .eq('user_id', user.id)
+        .single();
+        
+      if (profileErr || !profile) {
+         return res.status(404).json({ error: { message: "Artisan profile not found." } });
+      }
+
+      // 1. Set to pending
+      await adminClient.from('artisan_profiles').update({ verification_status: 'pending' }).eq('id', profile.id);
+
+      // 2. Mock provider call
+      const isMatch = true; // Hardcoded true for demo
+      const providerRef = "demo_ref_" + Date.now();
+
+      // 3. Insert verification record (raw NIN is immediately discarded)
+      await adminClient.from('identity_verifications').insert({
+        artisan_id: profile.id,
+        provider: 'demo_provider',
+        provider_reference: providerRef,
+        name_match: isMatch,
+        verified_at: new Date().toISOString()
+      });
+
+      // 4. Update status based on match
+      const newStatus = isMatch ? 'verified' : 'failed';
+      await adminClient.from('artisan_profiles')
+        .update({ verification_status: newStatus })
+        .eq('id', profile.id);
+
+      // 5. Evaluate trust tier progression (new -> vouched) if verified
+      if (newStatus === 'verified' && profile.trust_tier === 'new') {
+        const { count } = await adminClient
+          .from('vouches')
+          .select('*', { count: 'exact', head: true })
+          .eq('vouchee_id', user.id);
+          
+        if (count && count > 0) {
+          await adminClient.from('artisan_profiles').update({ trust_tier: 'vouched' }).eq('id', profile.id);
+        }
+      }
+
+      res.status(200).json({ message: "Verification processed", status: newStatus });
+    } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
   });
 
   apiRouter.post("/jobs/:id/confirm", async (req, res) => {

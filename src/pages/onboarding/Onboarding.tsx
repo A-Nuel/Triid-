@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Network, PenTool, Zap, Droplet, Cog, Car, Shield, KeySquare, PlusCircle } from 'lucide-react';
 import { LocationSetup } from './LocationSetup';
+import { supabase } from '@/lib/supabase';
 
 export function Onboarding() {
   const [step, setStep] = useState(1);
@@ -56,7 +57,7 @@ export function Onboarding() {
           <div className="mb-space-10">
             <div className="flex justify-between items-center text-xs font-bold text-on-surface-variant mb-space-3 tracking-wider uppercase">
               <span>Step {step} of 3</span>
-              <span>{step === 1 ? 'Skills & Expertise' : 'Location & Photo'}</span>
+              <span>{step === 1 ? 'Skills & Expertise' : step === 2 ? 'Location & Photo' : 'Identity Verification'}</span>
             </div>
             <div className="h-1.5 w-full bg-surface-variant rounded-full overflow-hidden">
               <div 
@@ -106,12 +107,87 @@ export function Onboarding() {
                 </button>
               </div>
             </div>
+          ) : step === 2 ? (
+            <LocationSetup skills={selectedSkills} onComplete={() => setStep(3)} />
           ) : (
-            <LocationSetup skills={selectedSkills} />
+            <IdentityVerificationSetup />
           )}
 
         </div>
       </main>
+    </div>
+  );
+}
+
+function IdentityVerificationSetup() {
+  const [nin, setNin] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const completeAndNavigate = () => {
+    window.location.href = '/artisan/dashboard'; // direct route
+  };
+
+  const verifyNin = async () => {
+    if (!nin.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const tokenResult = await supabase.auth.getSession();
+      const token = tokenResult?.data?.session?.access_token;
+      
+      const res = await fetch('/api/v1/artisans/verify-identity', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ nin })
+      });
+      if (!res.ok) throw new Error("Failed to verify");
+      
+      completeAndNavigate();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to verify identity. Please try again.");
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 flex flex-col">
+      <h2 className="text-3xl font-bold text-primary mb-space-2 tracking-tight">Verify Your Identity</h2>
+      <p className="text-sm text-on-surface-variant mb-space-8">
+        Verify your identity to unlock Vouched status, higher visibility, and advance payments.
+      </p>
+
+      <div className="bg-white border border-surface-variant rounded-xl p-space-8 shadow-sm max-w-lg">
+        <label className="block text-sm font-bold text-on-surface mb-2">National Identity Number (NIN)</label>
+        <input 
+          type="text" 
+          value={nin}
+          onChange={e => setNin(e.target.value)}
+          placeholder="Enter your 11-digit NIN" 
+          className="w-full h-12 px-space-4 border border-outline-variant bg-surface-bright rounded-md text-sm focus:outline-none focus:border-primary transition-colors focus:bg-white"
+        />
+        <p className="text-xs text-on-surface-variant mt-3 leading-relaxed">
+          Your NIN is checked securely to verify your identity. We do not store your actual number on our servers.
+        </p>
+      </div>
+
+      <div className="pt-space-6 border-t border-surface-variant mt-auto flex justify-between items-center">
+        <button 
+          onClick={completeAndNavigate}
+          className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors"
+        >
+          Skip for now
+        </button>
+        <button 
+          onClick={verifyNin}
+          disabled={!nin.trim() || isSubmitting}
+          className="bg-[#1b4f63] text-white px-space-12 py-3 rounded-md font-semibold text-sm hover:bg-[#143b4f] transition-colors disabled:opacity-50"
+        >
+          {isSubmitting ? 'Verifying...' : 'Verify NIN'}
+        </button>
+      </div>
     </div>
   );
 }

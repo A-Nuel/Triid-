@@ -26,6 +26,7 @@ export function ArtisanProfile() {
           starting_price_min,
           starting_price_max,
           trust_tier,
+          verification_status,
           users (
             full_name
           )
@@ -43,6 +44,7 @@ export function ArtisanProfile() {
           jobs: data.total_jobs_completed || 0,
           priceMin: data.starting_price_min ? `₦${data.starting_price_min.toLocaleString()}` : 'Ask',
           trustTier: data.trust_tier || 'new',
+          verificationStatus: data.verification_status || 'unverified',
           bio: data.bio || 'This artisan hasn\'t added a bio yet.'
         });
       }
@@ -105,7 +107,14 @@ export function ArtisanProfile() {
             </div>
           </div>
           
-          <h1 className="text-2xl font-bold text-primary mb-1">{artisan.name}</h1>
+          <div className="flex items-center gap-2 mb-1 justify-center">
+            <h1 className="text-2xl font-bold text-primary">{artisan.name}</h1>
+            {artisan.verificationStatus === 'verified' && (
+              <div className="flex items-center gap-1 text-[#22c55e] text-[11px] font-bold uppercase tracking-wider">
+                <ShieldCheck className="w-4 h-4" /> ID Verified
+              </div>
+            )}
+          </div>
           <p className="text-sm font-semibold text-[#1b4f63] uppercase tracking-wider mb-space-3">{artisan.category}</p>
           
           <div className="flex flex-wrap justify-center gap-3 mb-space-6">

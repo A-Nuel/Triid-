@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Search, Star, MapPin, Filter } from 'lucide-react';
+import { ArrowLeft, Search, Star, MapPin, Filter, ShieldCheck } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 
@@ -27,6 +27,7 @@ export function ArtisanDirectory() {
           total_jobs_completed,
           starting_price_min,
           starting_price_max,
+          verification_status,
           users (
             full_name
           )
@@ -39,6 +40,7 @@ export function ArtisanDirectory() {
           categories: a.skill_categories || [],
           rating: a.average_rating || 'New',
           jobs: a.total_jobs_completed || 0,
+          verificationStatus: a.verification_status || 'unverified',
           price: a.starting_price_min ? `₦${a.starting_price_min.toLocaleString()}` : 'Ask for price',
           distance: '1.2km' // Mock distance since PostGIS queries from browser client can be complex without Edge functions
         })));
@@ -119,7 +121,14 @@ export function ArtisanDirectory() {
               
               <div className="flex-1 flex flex-col justify-center">
                 <div className="flex justify-between items-start mb-1">
-                  <h3 className="font-bold text-primary truncate max-w-[160px]">{artisan.name}</h3>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <h3 className="font-bold text-primary truncate max-w-[120px]">{artisan.name}</h3>
+                    {artisan.verificationStatus === 'verified' && (
+                      <div className="flex-shrink-0 text-[#22c55e]">
+                        <ShieldCheck className="w-3.5 h-3.5" title="ID Verified" />
+                      </div>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1 text-sm font-bold text-on-surface">
                     <Star className="w-4 h-4 fill-[#F2C94C] text-[#F2C94C]" />
                     {artisan.rating}

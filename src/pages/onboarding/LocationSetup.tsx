@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
-export function LocationSetup({ skills }: { skills: string[] }) {
+export function LocationSetup({ skills, onComplete }: { skills: string[], onComplete?: () => void }) {
   const navigate = useNavigate();
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [locationText, setLocationText] = useState('');
@@ -56,7 +56,11 @@ export function LocationSetup({ skills }: { skills: string[] }) {
         });
         if (error) throw error;
       }
-      navigate('/artisan/dashboard');
+      if (onComplete) {
+        onComplete();
+      } else {
+        navigate('/artisan/dashboard');
+      }
     } catch (err) {
       console.error(err);
       alert("Failed to save profile. Please try again.");

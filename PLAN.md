@@ -18,6 +18,14 @@
 - [x] Vercel `vercel.json` configured to host the static React frontend and proxy all `/api/*` requests to the Render backend (`https://triid.onrender.com`).
 - [x] Environment variable manifest (`.env.example`) mapped out for both platforms.
 
+### Identity Verification (Addendum)
+- [x] Schema: Added `verification_status` ENUM to `artisan_profiles` (defaults to `unverified`).
+- [x] Schema: Added `identity_verifications` table for mocked third-party identity resolution (storing only provider details and boolean results, NEVER the raw NIN).
+- [x] Backend: Created `POST /api/v1/artisans/verify-identity` endpoint mocking the external provider resolution.
+- [x] Backend: Updated Trust Tier progression (`new` -> `vouched`) to strictly require *both* `verified` status and at least one vouch.
+- [x] Frontend: Integrated NIN validation input as step 3 of the `Onboarding.tsx` flow.
+- [x] Frontend: Displayed an `ID Verified` green check badge in `ArtisanProfile.tsx`, `ArtisanDirectory.tsx`, and `EmergencyMatching.tsx`.
+
 ---
 
 ## 2. Immediate Next Steps (P0 / Hackathon Demo Scope)

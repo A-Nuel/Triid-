@@ -82,16 +82,26 @@ export function HeroSlider() {
       >
         {slides[current].description}
       </motion.p>
-      <motion.button 
+      <motion.div 
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.6 }}
-        onClick={() => navigate('/auth')}
-        className={`px-space-6 py-4 rounded-md font-semibold flex items-center gap-2 transition-all shadow-lg ${slides[current].ctaStyle}`}
+        className="flex items-center gap-4 flex-wrap"
       >
-        {slides[current].cta}
-        <ArrowRight className="w-4 h-4" />
-      </motion.button>
+        <button 
+          onClick={() => navigate('/auth')}
+          className={`px-space-6 py-4 rounded-md font-semibold flex items-center gap-2 transition-all shadow-lg ${slides[current].ctaStyle}`}
+        >
+          {slides[current].cta}
+          <ArrowRight className="w-4 h-4" />
+        </button>
+        <button 
+          onClick={() => navigate('/demo/select-role')}
+          className="px-space-6 py-4 rounded-md font-semibold flex items-center gap-2 transition-all shadow-lg bg-surface/10 backdrop-blur-sm border border-white/20 text-white hover:bg-white/20"
+        >
+          View Demo Sandbox
+        </button>
+      </motion.div>
     </div>
   </div>
 </motion.div>

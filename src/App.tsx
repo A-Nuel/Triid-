@@ -10,6 +10,7 @@ import Landing from '@/pages/Landing';
 import { Splash } from '@/pages/Splash';
 import { AuthPage } from '@/pages/AuthPage';
 import { ConfirmEmail } from '@/pages/ConfirmEmail';
+import { DemoRoleSelection } from '@/pages/DemoRoleSelection';
 import { Onboarding } from '@/pages/onboarding/Onboarding';
 import { RoleSelection } from '@/pages/onboarding/RoleSelection';
 import { ResidentDashboard } from '@/pages/ResidentDashboard';
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="/splash" element={<Splash />} />
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/confirm-email" element={<ConfirmEmail />} />
+          <Route path="/demo/select-role" element={<DemoRoleSelection />} />
           
           <Route path="/onboarding/role" element={
             <ProtectedRoute>
