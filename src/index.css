@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #f5faff;
+  --color-surface-dim: #cddce8;
+  --color-surface-bright: #f5faff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #eaf5ff;
+  --color-surface-container: #e1f0fc;
+  --color-surface-container-high: #dbeaf6;
+  --color-surface-container-highest: #d6e4f1;
+  --color-on-surface: #0f1d26;
+  --color-on-surface-variant: #41484c;
+  --color-inverse-surface: #24323b;
+  --color-inverse-on-surface: #e4f3ff;
+  --color-outline: #71787c;
+  --color-outline-variant: #c0c7cc;
+  --color-surface-tint: #346479;
+  --color-primary: #003849;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #1b4f63;
+  --color-on-primary-container: #90c0d7;
+  --color-inverse-primary: #9dcde5;
+  --color-secondary: #476273;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #c7e4f8;
+  --color-on-secondary-container: #4b6677;
+  --color-tertiary: #003847;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #075064;
+  --color-on-tertiary-container: #88c1d8;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+  --color-primary-fixed: #bee9ff;
+  --color-primary-fixed-dim: #9dcde5;
+  --color-on-primary-fixed: #001f2a;
+  --color-on-primary-fixed-variant: #174c60;
+  --color-background: #f5faff;
+  --color-on-background: #0f1d26;
+  --color-surface-variant: #d6e4f1;
+  
+  --color-success: #1a7a4a;
+  --color-success-bg: #e8f5ee;
+  --color-warning: #b45309;
+  --color-warning-bg: #fef3e2;
+  --color-critical: #b91c1c;
+  --color-critical-bg: #fee2e2;
+
+  --spacing-space-1: 4px;
+  --spacing-space-2: 8px;
+  --spacing-space-3: 12px;
+  --spacing-space-4: 16px;
+  --spacing-space-5: 20px;
+  --spacing-space-6: 24px;
+  --spacing-space-8: 32px;
+  --spacing-space-10: 40px;
+  --spacing-space-12: 48px;
+  --spacing-space-16: 64px;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-on-background);
+  font-family: var(--font-sans);
+}
