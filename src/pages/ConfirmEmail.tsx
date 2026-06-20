@@ -1,14 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Mail, MailCheck } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function ConfirmEmail() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const email = location.state?.email || '';
   const [resending, setResending] = useState(false);
   const [message, setMessage] = useState('');
+
+  // Automatically redirect when user becomes available
+  useEffect(() => {
+    if (user) {
+      // Assuming a new user without a role needs to select one,
+      // or we can just send them to the role page and let it handle redirects.
+      navigate('/onboarding/role');
+    }
+  }, [user, navigate]);
 
   const handleResend = async () => {
     if (!email) {
