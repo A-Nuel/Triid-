@@ -23,14 +23,21 @@ export function AuthPage() {
         });
         if (error) throw error;
         
-        // After signup, take user to role selection
-        navigate('/onboarding/role');
+        // After signup, direct them to check email
+        navigate('/confirm-email', { state: { email } });
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
-        if (error) throw error;
+        
+        if (error) {
+          if (error.message.toLowerCase().includes('email not confirmed')) {
+            navigate('/confirm-email', { state: { email } });
+            return;
+          }
+          throw error;
+        }
         
         // Check if role is established
         if (data.user?.user_metadata?.role === 'resident') {

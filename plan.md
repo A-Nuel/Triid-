@@ -44,10 +44,10 @@ The backend will be structured into distinct, decoupled modules to allow future 
 ### Phase 0: Hackathon Demo (Must Work)
 - [x] Database Schema Setup & Supabase connection.
 - [x] Authentication (Google OAuth + Email fallback).
-- [ ] Core Job Lifecycles (Emergency Ping -> AI Triage -> Match -> Accept -> Escrow Hold -> Confirm -> Release).
-- [ ] Browse & Book core path (Directory Search -> Profile View -> Scheduled Booking).
-- [ ] Escrow/Wallet backend scaffolding (Test-mode Paystack).
-- [ ] Vouching & Ratings.
+- [x] Core Job Lifecycles (Emergency Ping -> AI Triage -> Match -> Accept -> Escrow Hold -> Confirm -> Release).
+- [x] Browse & Book core path (Directory Search -> Profile View -> Scheduled Booking).
+- [x] Escrow/Wallet backend scaffolding (Test-mode Paystack).
+- [x] Vouching & Ratings.
 - [x] Initial PWA Shell Support.
 
 ### Phase 1: Robust Features

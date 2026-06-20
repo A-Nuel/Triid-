@@ -68,7 +68,11 @@ export function ResidentDashboard() {
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-space-4">
             {categories.map(cat => (
-              <button key={cat.id} className="bg-white border text-left border-surface-variant rounded-xl p-space-6 flex flex-col hover:border-primary hover:shadow-sm transition-all group">
+              <button 
+                key={cat.id} 
+                onClick={() => navigate(`/resident/directory?category=${cat.id}`)}
+                className="bg-white border text-left border-surface-variant rounded-xl p-space-6 flex flex-col hover:border-primary hover:shadow-sm transition-all group"
+              >
                 <div className="text-[#2f6b80] mb-space-4 group-hover:text-primary transition-colors">
                   {cat.icon}
                 </div>

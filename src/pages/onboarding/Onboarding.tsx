@@ -107,7 +107,7 @@ export function Onboarding() {
               </div>
             </div>
           ) : (
-            <LocationSetup />
+            <LocationSetup skills={selectedSkills} />
           )}
 
         </div>

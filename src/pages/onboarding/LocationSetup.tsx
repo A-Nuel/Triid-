@@ -1,15 +1,68 @@
-import { MapPin, Camera, Search, PenTool } from 'lucide-react';
+import { MapPin, Camera, Search, PenTool, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
 
-export function LocationSetup() {
+export function LocationSetup({ skills }: { skills: string[] }) {
   const navigate = useNavigate();
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const [locationText, setLocationText] = useState('');
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Example handling function for completing setup
-  const completeSetup = () => {
-    // Logic to save profile data to backend via auth token
-    navigate('/artisan/dashboard');
+  const requestLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocationText(`${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`);
+          setShowLocationPrompt(false);
+        },
+        () => {
+          alert("Unable to retrieve your location. Please enter it manually.");
+          setShowLocationPrompt(false);
+        }
+      );
+    } else {
+      alert("Geolocation is not supported by your browser.");
+    }
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const completeSetup = async () => {
+    setIsSubmitting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Here we update user metadata. In the future this should call
+        // the API to create an entry in the 'artisan_profiles' table.
+        const { error } = await supabase.auth.updateUser({
+          data: {
+            skills,
+            location: locationText,
+            photoUrl: photoPreview,
+            onboardingCompleted: true
+          }
+        });
+        if (error) throw error;
+      }
+      navigate('/artisan/dashboard');
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save profile. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (showLocationPrompt) {
@@ -25,7 +78,7 @@ export function LocationSetup() {
         </p>
         
         <button 
-          onClick={completeSetup}
+          onClick={requestLocation}
           className="w-full bg-[#1b4f63] text-white py-3 rounded-md font-semibold text-sm hover:bg-[#143b4f] transition-colors flex items-center justify-center gap-2 mb-space-4"
         >
           <MapPin className="w-4 h-4" /> Allow Access
@@ -42,7 +95,7 @@ export function LocationSetup() {
 
   return (
     <div className="flex-1 flex flex-col">
-      <h2 className="text-3xl font-bold text-primary mb-space-2 tracking-tight">Complete Your Profile, Emeka.</h2>
+      <h2 className="text-3xl font-bold text-primary mb-space-2 tracking-tight">Complete Your Profile.</h2>
       <p className="text-sm text-on-surface-variant mb-space-8">
         Final touches to get you ready for jobs in Lagos.
       </p>
@@ -70,9 +123,10 @@ export function LocationSetup() {
             <Search className="w-4 h-4 text-outline absolute left-3 top-1/2 -translate-y-1/2" />
             <input 
               type="text" 
-              placeholder="Lagos, Nigeria" 
+              placeholder="e.g. Lagos, Nigeria" 
+              value={locationText}
+              onChange={(e) => setLocationText(e.target.value)}
               className="w-full h-11 pl-space-10 pr-space-3 border border-outline-variant bg-surface-bright rounded-md text-sm focus:outline-none focus:border-primary focus:bg-white transition-colors"
-              readOnly
             />
           </div>
         </div>
@@ -85,20 +139,42 @@ export function LocationSetup() {
           </p>
           
           <div className="flex-1 flex flex-col items-center justify-center mb-space-8">
-            <div className="w-32 h-32 rounded-full border-2 border-dashed border-outline-variant flex items-center justify-center relative mb-space-4">
-              <Camera className="w-8 h-8 text-outline-variant" />
-              <button className="absolute bottom-0 right-0 w-8 h-8 bg-[#1b4f63] rounded-full flex items-center justify-center text-white border-2 border-white hover:bg-primary transition-colors">
+            <div 
+              className="w-32 h-32 rounded-full border-2 border-dashed border-outline-variant flex items-center justify-center relative mb-space-4 overflow-hidden bg-surface cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {photoPreview ? (
+                <img src={photoPreview} alt="Profile preview" className="w-full h-full object-cover" />
+              ) : (
+                <Camera className="w-8 h-8 text-outline-variant" />
+              )}
+              <div className="absolute bottom-0 right-0 w-8 h-8 bg-[#1b4f63] rounded-full flex items-center justify-center text-white border-2 border-white hover:bg-primary transition-colors">
                 <PenTool className="w-4 h-4" />
-              </button>
+              </div>
             </div>
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={handlePhotoUpload} 
+              ref={fileInputRef} 
+              className="hidden" 
+            />
           </div>
           
-          <button className="w-full bg-surface-bright text-on-surface border border-outline-variant py-3 rounded-md font-bold text-sm hover:bg-surface transition-colors mb-space-3">
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full bg-surface-bright text-on-surface border border-outline-variant py-3 rounded-md font-bold text-sm hover:bg-surface transition-colors mb-space-3"
+          >
             Upload photo
           </button>
-          <button className="w-full text-center text-xs text-on-surface-variant font-medium hover:text-primary transition-colors py-2">
-            Skip for now
-          </button>
+          {photoPreview && (
+            <button 
+              onClick={() => setPhotoPreview(null)}
+              className="w-full text-center text-xs text-critical font-medium hover:underline transition-colors py-2"
+            >
+              Remove photo
+            </button>
+          )}
         </div>
 
       </div>
@@ -106,8 +182,10 @@ export function LocationSetup() {
       <div className="pt-space-6 border-t border-surface-variant mt-auto flex justify-end">
         <button 
           onClick={completeSetup}
-          className="bg-[#1b4f63] text-white px-space-12 py-3 rounded-md font-semibold text-sm hover:bg-[#143b4f] transition-colors"
+          disabled={isSubmitting}
+          className="bg-[#1b4f63] text-white px-space-12 py-3 rounded-md font-semibold text-sm hover:bg-[#143b4f] transition-colors disabled:opacity-50 flex items-center gap-2"
         >
+          {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
           Complete Setup
         </button>
       </div>
