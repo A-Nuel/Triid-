@@ -222,9 +222,15 @@ async function startServer() {
       };
 
       if (mode === 'emergency') {
-        const triage = await aiService.triageEmergency(description);
-        jobData.category = triage.category;
-        jobData.urgency = triage.urgency;
+        try {
+          const triage = await aiService.triageEmergency(description);
+          jobData.category = triage.category;
+          jobData.urgency = triage.urgency;
+        } catch (aiError) {
+          console.warn("AI Triage failed, using fallback values for demo:", aiError);
+          jobData.category = 'plumbing';
+          jobData.urgency = 'high';
+        }
         // In real emergency, matching module assigns artisan later. Or we can fake assign immediately for demo:
         jobData.estimated_amount = 15000;
         

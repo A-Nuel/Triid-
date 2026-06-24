@@ -20,12 +20,13 @@ export function EmergencyMatching() {
         .select(`
           status,
           estimated_amount,
-          artisan_profiles (
+          users!jobs_artisan_id_fkey (
             id,
-            average_rating,
-            verification_status,
-            users (
-              full_name
+            full_name,
+            artisan_profiles (
+              id,
+              average_rating,
+              verification_status
             )
           )
         `)
@@ -34,8 +35,17 @@ export function EmergencyMatching() {
 
       if (data) {
         setJobStatus(data.status);
-        if (data.status === 'matched' && data.artisan_profiles) {
-          setArtisan(data.artisan_profiles);
+        if ((data.status === 'matched' || data.status === 'accepted') && data.users) {
+          const u = data.users as any;
+          // artisan_profiles is returned as an object directly (or array depending on PostgREST 1:1 detection, we handle both)
+          const profile = Array.isArray(u.artisan_profiles) ? u.artisan_profiles[0] : u.artisan_profiles;
+          
+          setArtisan({
+            id: profile?.id,
+            average_rating: profile?.average_rating,
+            verification_status: profile?.verification_status,
+            users: { full_name: u.full_name }
+          });
           setEstimatedAmount(data.estimated_amount);
         }
       }

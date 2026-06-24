@@ -17,17 +17,15 @@ export function ConfirmCompletion() {
         .from('jobs')
         .select(`
           status,
-          artisan_profiles (
-            users (
-              full_name
-            )
+          users!jobs_artisan_id_fkey (
+            full_name
           )
         `)
         .eq('id', id)
         .single();
       
-      if (data && data.artisan_profiles) {
-        setArtisan(data.artisan_profiles);
+      if (data && data.users) {
+        setArtisan({ users: data.users });
       }
     };
     fetchJob();

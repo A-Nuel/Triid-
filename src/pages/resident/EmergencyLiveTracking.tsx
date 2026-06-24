@@ -17,11 +17,9 @@ export function EmergencyLiveTracking() {
         .from('jobs')
         .select(`
           status,
-          artisan_profiles (
-            users (
-              full_name,
-              phone
-            )
+          users!jobs_artisan_id_fkey (
+            full_name,
+            phone
           )
         `)
         .eq('id', id)
@@ -29,7 +27,9 @@ export function EmergencyLiveTracking() {
 
       if (data) {
         setJobStatus(data.status);
-        if (data.artisan_profiles) setArtisan(data.artisan_profiles);
+        if (data.users) {
+          setArtisan({ users: data.users });
+        }
       }
     };
     fetchJob();

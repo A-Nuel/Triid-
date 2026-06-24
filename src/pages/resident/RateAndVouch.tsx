@@ -21,10 +21,12 @@ export function RateAndVouch() {
     const fetchArtisan = async () => {
       const { data } = await supabase
         .from('jobs')
-        .select(`artisan_id, artisan_profiles(users(full_name))`)
+        .select(`artisan_id, users!jobs_artisan_id_fkey(full_name)`)
         .eq('id', id)
         .single();
-      if (data) setArtisan({ id: data.artisan_id, ...data.artisan_profiles });
+      if (data) {
+        setArtisan({ id: data.artisan_id, users: data.users });
+      }
     };
     fetchArtisan();
   }, [id]);
