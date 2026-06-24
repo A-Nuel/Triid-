@@ -1,6 +1,6 @@
 import { MapPin, Camera, Search, PenTool, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 export function LocationSetup({ skills, onComplete }: { skills: string[], onComplete?: () => void }) {

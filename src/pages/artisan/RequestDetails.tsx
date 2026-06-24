@@ -1,8 +1,28 @@
 import { ArrowLeft, User, MapPin, Calendar, Clock, Check } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
 
 export function RequestDetails() {
   const navigate = useNavigate();
+  const { id } = useParams();
+
+  const handleAccept = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/v1/jobs/${id}/accept`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (res.ok) {
+        navigate(`/artisan/en-route/${id}`);
+      } else {
+        alert("Job might have already been taken by someone else.");
+        navigate('/artisan/dashboard');
+      }
+    } catch(e) {
+      alert("Error accepting job");
+    }
+  };
 
   return (
     <div className="max-w-3xl mx-auto p-space-6 md:p-space-8 w-full font-sans">
@@ -76,7 +96,7 @@ export function RequestDetails() {
             Decline
           </button>
           <button 
-            onClick={() => navigate('/artisan/en-route/temp-2')}
+            onClick={() => handleAccept()}
             className="flex-[2] bg-[#1b4f63] text-white font-bold py-3 rounded-lg hover:bg-[#153e4d] shadow-sm flex justify-center items-center gap-2 transition-all active:scale-95"
           >
             <Check className="w-5 h-5" /> Accept Request

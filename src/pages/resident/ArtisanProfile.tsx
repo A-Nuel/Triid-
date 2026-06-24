@@ -37,7 +37,7 @@ export function ArtisanProfile() {
       if (data) {
         setArtisan({
           id: data.id,
-          name: data.users?.full_name || 'Unknown Artisan',
+          name: (data.users as any)?.full_name || 'Unknown Artisan',
           category: data.skill_categories?.[0] || 'general',
           distance: '1.2km', // Mock
           rating: data.average_rating || 'New',
@@ -59,7 +59,7 @@ export function ArtisanProfile() {
       if (reviewsData) {
         setReviews(reviewsData.map(r => ({
           id: r.id,
-          author: r.users?.full_name || 'Anonymous',
+          author: (r.users as any)?.full_name || 'Anonymous',
           rating: r.rating,
           date: new Date(r.created_at).toLocaleDateString(),
           text: r.comment || ''

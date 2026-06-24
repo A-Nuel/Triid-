@@ -76,6 +76,19 @@ export function JobFeed() {
         </button>
       </div>
 
+      {/* Active Job Banner */}
+      {jobs.filter(j => j.status === 'accepted' || j.status === 'in_progress').map(job => (
+        <div key={job.id} onClick={() => navigate(job.status === 'in_progress' ? `/artisan/in-progress/${job.id}` : `/artisan/en-route/${job.id}`)} className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 cursor-pointer hover:bg-blue-100 transition flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-blue-900">Active {job.mode === 'emergency' ? 'Emergency' : 'Job'}</h3>
+            <p className="text-sm text-blue-700">{job.description}</p>
+          </div>
+          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold">
+            {job.status === 'in_progress' ? 'Resume Work' : 'Go to Map'}
+          </button>
+        </div>
+      ))}
+
       {/* Tabs */}
       <div className="flex border-b border-surface-variant mb-space-6">
         <button 
@@ -172,13 +185,39 @@ export function JobFeed() {
               <p className="text-sm">You are currently looking for jobs. Incoming requests will appear here.</p>
             </div>
           )
-        ) : (
-          <div className="text-center py-space-12 text-on-surface-variant flex flex-col items-center">
-            <Clock className="w-12 h-12 mb-space-4 text-outline-variant" />
-            <p className="font-medium text-on-surface mb-1">No scheduled jobs</p>
-            <p className="text-sm">Your upcoming booked jobs will appear here.</p>
-          </div>
-        )}
+        ) : activeTab === 'scheduled' ? (
+          jobs.filter(j => j.mode === 'scheduled' && (j.status === 'accepted' || j.status === 'confirmed')).length > 0 ? (
+            <div className="grid grid-cols-1 gap-space-4">
+              {jobs.filter(j => j.mode === 'scheduled' && (j.status === 'accepted' || j.status === 'confirmed')).map((job) => (
+                <div key={job.id} className="bg-white border text-left border-surface-variant rounded-xl flex flex-col p-space-6 shadow-sm">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="bg-surface-variant text-on-surface text-xs font-bold px-2 py-1 flex items-center rounded-sm tracking-widest uppercase">
+                      Scheduled
+                    </span>
+                    <span className="text-xs font-mono text-on-surface-variant">
+                       {new Date(job.scheduled_for || job.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-primary mb-2 capitalize">{job.description}</h3>
+                  <div className="flex gap-space-3 mt-4">
+                    <button 
+                      onClick={() => navigate(`/artisan/in-progress/${job.id}`)}
+                      className="flex-1 bg-primary text-white font-semibold text-sm py-2 px-4 rounded-md hover:bg-primary/90 shadow-sm"
+                    >
+                      Start Work
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-space-12 text-on-surface-variant flex flex-col items-center">
+              <Clock className="w-12 h-12 mb-space-4 text-outline-variant" />
+              <p className="font-medium text-on-surface mb-1">No scheduled jobs</p>
+              <p className="text-sm">Your upcoming booked jobs will appear here.</p>
+            </div>
+          )
+        ) : null}
       </div>
 
     </div>

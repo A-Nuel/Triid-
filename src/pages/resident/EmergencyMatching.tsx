@@ -56,7 +56,7 @@ export function EmergencyMatching() {
         async (payload) => {
           const newStatus = payload.new.status;
           setJobStatus(newStatus);
-          if (newStatus === 'matched') {
+          if (newStatus === 'matched' || newStatus === 'accepted') {
             fetchJob(); // Fetch again to get joined artisan data
           }
         }
@@ -89,18 +89,28 @@ export function EmergencyMatching() {
       <div className="flex-1 flex flex-col justify-center items-center">
         {jobStatus === 'pending' && (
           <div className="flex flex-col items-center max-w-sm">
-            <div className="relative mb-8">
-              <div className="absolute inset-0 bg-blue-500 blur-xl opacity-30 rounded-full animate-pulse"></div>
-              <div className="w-24 h-24 bg-gray-800 rounded-full border-4 border-gray-700 flex items-center justify-center relative z-10">
-                <Zap className="w-10 h-10 text-blue-400 animate-pulse" />
+            <div className="relative mb-12 flex items-center justify-center">
+              {/* Radar Grid Circles */}
+              <div className="absolute w-64 h-64 border border-green-500/20 rounded-full"></div>
+              <div className="absolute w-48 h-48 border border-green-500/30 rounded-full"></div>
+              <div className="absolute w-32 h-32 border border-green-500/40 rounded-full"></div>
+              <div className="absolute w-16 h-16 border border-green-500/50 rounded-full bg-green-500/10"></div>
+              
+              {/* Radar Sweep Animation */}
+              <div className="absolute w-64 h-64 rounded-full overflow-hidden">
+                <div className="absolute top-1/2 left-1/2 w-32 h-32 origin-top-left bg-gradient-to-br from-green-400/40 to-transparent animate-[spin_2s_linear_infinite]"></div>
+              </div>
+              
+              <div className="relative z-10 bg-gray-900 rounded-full p-3 shadow-[0_0_15px_rgba(34,197,94,0.5)]">
+                <Zap className="w-8 h-8 text-green-400 animate-pulse" />
               </div>
             </div>
-            <h2 className="text-2xl font-bold mb-3">Pinging Artisans...</h2>
-            <p className="text-gray-400 text-lg">Finding the closest available professional for this emergency.</p>
+            <h2 className="text-2xl font-bold mb-3 text-green-400">Scanning for Artisans...</h2>
+            <p className="text-gray-400 text-lg">Locating the closest available professionals in your grid.</p>
           </div>
         )}
 
-        {jobStatus === 'matched' && artisan && (
+        {(jobStatus === 'matched' || jobStatus === 'accepted') && artisan && (
           <div className="flex flex-col items-center max-w-sm w-full animate-in slide-in-from-bottom-8 duration-500">
             <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-green-500/20">
               <CheckCircle2 className="w-10 h-10 text-white" />

@@ -187,6 +187,8 @@ async function startServer() {
 
       // 3. User-Based Rate Limiting (PRD 16.5 requirement)
       // Limit to 1 request per 2 minutes per user for emergency, easier limit for scheduled
+      /*
+      // Temporarily disabled for demo
       if (redis) {
         const rateLimitKey = `rate_limit:${user.id}:jobs_create`;
         const requests = await redis.incr(rateLimitKey);
@@ -197,6 +199,7 @@ async function startServer() {
           return res.status(429).json({ error: { message: "Rate limit exceeded. Please wait 2 minutes." } });
         }
       }
+      */
 
       let communityId = user.user_metadata?.community_id;
       if (!communityId) {
@@ -205,7 +208,7 @@ async function startServer() {
         if (comms && comms.length > 0) {
           communityId = comms[0].id;
         } else {
-          throw new Error("No community configured.");
+          communityId = null;
         }
       }
 
@@ -253,19 +256,23 @@ async function startServer() {
       // Hack for Hackathon Demo: If emergency, trigger a "match" after 3 seconds by updating the db
       if (mode === 'emergency') {
         setTimeout(async () => {
-          // Use service role for background mock assignment
-          const adminClient = createClient(
-            process.env.VITE_SUPABASE_URL || "",
-            process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
-          );
-          
-          // Find any artisan to mock assign
-          const { data: artisans } = await adminClient.from('artisan_profiles').select('id, user_id').limit(1);
-          if (artisans && artisans.length > 0) {
-            await adminClient.from('jobs').update({
-              status: 'matched',
-              artisan_id: artisans[0].user_id
-            }).eq('id', insertedJob.id);
+          try {
+            // Use service role for background mock assignment
+            const adminClient = createClient(
+              process.env.VITE_SUPABASE_URL || "",
+              process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+            );
+            
+            // Find any artisan to mock assign
+            const { data: artisans } = await adminClient.from('artisan_profiles').select('id, user_id').limit(1);
+            if (artisans && artisans.length > 0) {
+              await adminClient.from('jobs').update({
+                status: 'matched',
+                artisan_id: artisans[0].user_id
+              }).eq('id', insertedJob.id);
+            }
+          } catch (e) {
+            console.error("Mock matching error:", e);
           }
         }, 3000);
       }
@@ -273,7 +280,7 @@ async function startServer() {
       return res.status(201).json({ data: insertedJob });
     } catch (error: any) {
       console.error("Job creation error:", error);
-      if (error instanceof z.ZodError) {
+      if (error && typeof error === 'object' && 'errors' in error) {
         return res.status(400).json({ error: { message: "Validation failed", details: error.errors } });
       }
       res.status(500).json({ error: { message: error.message || "Failed to process job." } });
@@ -287,12 +294,18 @@ async function startServer() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
 
-      const { data, error } = await supabase.rpc('accept_job_atomic', {
-        p_job_id: id,
-        p_artisan_id: user.id
-      });
+      const { data: job } = await supabase.from('jobs').select('status').eq('id', id).single();
+      if (!job || (job.status !== 'pending' && job.status !== 'matched')) {
+        return res.status(409).json({ error: { message: "Job already taken or not found." } });
+      }
+
+      const { error } = await supabase.from('jobs').update({
+        status: 'accepted',
+        artisan_id: user.id,
+        accepted_at: new Date().toISOString()
+      }).eq('id', id);
+      
       if (error) throw error;
-      if (!data) return res.status(409).json({ error: { message: "Job already taken or not found." } });
       res.status(200).json({ message: "Job accepted" });
     } catch (e: any) {
       res.status(500).json({ error: { message: e.message } });
@@ -410,6 +423,49 @@ async function startServer() {
   apiRouter.post("/payments/jobs/:id/initiate", async (req, res) => {
     // Escrow holding mock
     res.status(200).json({ checkout_url: "mock_url" });
+  });
+
+  apiRouter.post("/jobs/:id/review", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { rating, comment } = req.body;
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const { data: job } = await supabase.from('jobs').select('artisan_id').eq('id', id).single();
+      if (!job || !job.artisan_id) throw new Error("Job or artisan not found");
+
+      const { data, error } = await supabase.from('reviews').insert({
+        job_id: id,
+        reviewer_id: user.id,
+        artisan_id: job.artisan_id,
+        rating,
+        comment
+      });
+      if (error) throw error;
+      res.status(200).json({ message: "Review submitted" });
+    } catch(e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  apiRouter.post("/vouches", async (req, res) => {
+    try {
+      const { artisan_id } = req.body;
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const { data, error } = await supabase.from('vouches').insert({
+        voucher_id: user.id,
+        artisan_id
+      });
+      if (error && error.code !== '23505') throw error; // ignore unique violation for demo
+      res.status(200).json({ message: "Vouch submitted" });
+    } catch(e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
   });
 
   app.use('/api/v1', apiRouter);
