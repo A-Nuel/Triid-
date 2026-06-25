@@ -2,13 +2,22 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Loader2, Zap, CheckCircle2, MapPin, Star, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
+import { isDemoAccount } from "@/lib/demoUtils";
 
 export function EmergencyMatching() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const [jobStatus, setJobStatus] = useState<string>("pending");
   const [artisan, setArtisan] = useState<any>(null);
   const [estimatedAmount, setEstimatedAmount] = useState<number | null>(null);
+
+  const [isChatting, setIsChatting] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{sender: 'resident' | 'artisan', text: string}[]>([]);
+  const [showPaymentButton, setShowPaymentButton] = useState(false);
+  
+  const isDemo = isDemoAccount(user?.email);
 
   useEffect(() => {
     if (!id) return;
@@ -77,6 +86,35 @@ export function EmergencyMatching() {
       supabase.removeChannel(channel);
     };
   }, [id]);
+
+  useEffect(() => {
+    if (isChatting) {
+      // Simulate a chat conversation
+      const timeouts: ReturnType<typeof setTimeout>[] = [];
+      
+      timeouts.push(setTimeout(() => {
+        setChatMessages(prev => [...prev, { sender: 'resident', text: 'Hi, I have an emergency!' }]);
+      }, 500));
+
+      timeouts.push(setTimeout(() => {
+        setChatMessages(prev => [...prev, { sender: 'artisan', text: `Hello, I'm on my way. I'll be there in 15 mins.` }]);
+      }, 2000));
+      
+      timeouts.push(setTimeout(() => {
+        setChatMessages(prev => [...prev, { sender: 'resident', text: 'Okay, thank you!' }]);
+      }, 3500));
+
+      timeouts.push(setTimeout(() => {
+        setShowPaymentButton(true);
+      }, 4500));
+
+      return () => timeouts.forEach(clearTimeout);
+    }
+  }, [isChatting]);
+
+  const handleContactArtisan = () => {
+    setIsChatting(true);
+  };
 
   const handleProceedToPayment = () => {
     navigate(`/resident/emergency/payment/${id}`);
@@ -157,12 +195,55 @@ export function EmergencyMatching() {
               </div>
             </div>
 
-            <button
-              onClick={handleProceedToPayment}
-              className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-lg transition active:scale-[0.98] shadow-lg shadow-blue-600/20"
-            >
-              Proceed to Payment
-            </button>
+            {isDemo ? (
+              !isChatting ? (
+                <button
+                  onClick={handleContactArtisan}
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-lg transition active:scale-[0.98] shadow-lg shadow-blue-600/20 mt-4"
+                >
+                  Contact Artisan
+                </button>
+              ) : (
+                <div className="w-full bg-gray-800 rounded-xl p-4 flex flex-col gap-3 shadow-xl mb-4">
+                  <div className="text-left text-sm text-gray-400 font-bold border-b border-gray-700 pb-2 mb-2">Live Chat</div>
+                  {chatMessages.length === 0 && (
+                    <div className="flex justify-center my-4">
+                      <span className="flex gap-1">
+                        <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></span>
+                        <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-100"></span>
+                        <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-200"></span>
+                      </span>
+                    </div>
+                  )}
+                  {chatMessages.map((msg, idx) => (
+                    <div key={idx} className={`flex ${msg.sender === 'resident' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${
+                        msg.sender === 'resident' 
+                          ? 'bg-blue-600 text-white rounded-tr-sm' 
+                          : 'bg-gray-700 text-white rounded-tl-sm'
+                      }`}>
+                        {msg.text}
+                      </div>
+                    </div>
+                  ))}
+                  {showPaymentButton && (
+                    <button
+                      onClick={handleProceedToPayment}
+                      className="w-full py-3 mt-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold transition active:scale-[0.98] shadow-lg animate-in fade-in duration-300"
+                    >
+                      Proceed to Payment
+                    </button>
+                  )}
+                </div>
+              )
+            ) : (
+              <button
+                onClick={handleProceedToPayment}
+                className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-lg transition active:scale-[0.98] shadow-lg shadow-blue-600/20 mt-4"
+              >
+                Proceed to Payment
+              </button>
+            )}
           </div>
         )}
       </div>

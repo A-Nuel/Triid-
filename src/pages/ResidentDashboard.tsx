@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { 
   LogOut, ShieldAlert, Calendar, History, 
   Settings, HelpCircle, MapPin, Star,
-  Zap, Droplet, Cog, Car, Wrench, Navigation2, Search, MoreHorizontal, CheckCircle2, ChevronLeft, ChevronRight, Menu
+  Zap, Droplet, Cog, Car, Wrench, Navigation2, Search, MoreHorizontal, CheckCircle2, ChevronLeft, ChevronRight, Menu,
+  LayoutDashboard, Store, MessageSquare, BarChart2, Briefcase, Map, User, Home, AlertOctagon, Sparkles
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -12,15 +13,18 @@ export function ResidentDashboard() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<any[]>([]);
+  const [trustedArtisans, setTrustedArtisans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
-    async function fetchJobs() {
+    async function fetchData() {
       if (!user) return;
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
+        
+        // Fetch jobs
         const res = await fetch('/api/v1/jobs', {
           headers: { Authorization: `Bearer ${session.access_token}` }
         });
@@ -28,13 +32,34 @@ export function ResidentDashboard() {
           const { data } = await res.json();
           setJobs(data || []);
         }
+
+        // Fetch artisans
+        const { data: artisansData, error: artisansErr } = await supabase
+          .from('users')
+          .select(`
+            id,
+            full_name,
+            artisan_profiles (
+              category,
+              average_rating,
+              total_reviews,
+              verification_status
+            )
+          `)
+          .eq('role', 'artisan')
+          .limit(5);
+        
+        if (!artisansErr && artisansData) {
+          setTrustedArtisans(artisansData);
+        }
+
       } catch (err) {
         console.error(err);
       } finally {
         setLoading(false);
       }
     }
-    fetchJobs();
+    fetchData();
   }, [user]);
 
   const handleSignOut = async () => {
@@ -90,23 +115,23 @@ export function ResidentDashboard() {
 
         <nav className="flex-1 flex flex-col gap-1">
           <button className="flex items-center gap-3 px-3 py-2 bg-[#003849] text-[#76a2b6] font-semibold rounded-lg w-full text-left">
-            <span className="material-symbols-outlined text-[20px]">dashboard</span>
+            <LayoutDashboard className="w-5 h-5" />
             <span className="text-sm font-medium">Dashboard</span>
           </button>
           <button onClick={() => navigate('/resident/directory')} className="flex items-center gap-3 px-3 py-2 text-[#4d6879] hover:bg-white/5 rounded-lg transition-all w-full text-left">
-            <span className="material-symbols-outlined text-[20px]">storefront</span>
+            <Store className="w-5 h-5" />
             <span className="text-sm font-medium">Service Marketplace</span>
           </button>
           <button className="flex items-center gap-3 px-3 py-2 text-[#4d6879] hover:bg-white/5 rounded-lg transition-all w-full text-left">
-            <span className="material-symbols-outlined text-[20px]">emergency_share</span>
+            <Zap className="w-5 h-5" />
             <span className="text-sm font-medium">Active Dispatches</span>
           </button>
           <button className="flex items-center gap-3 px-3 py-2 text-[#4d6879] hover:bg-white/5 rounded-lg transition-all w-full text-left">
-            <span className="material-symbols-outlined text-[20px]">chat_bubble</span>
+            <MessageSquare className="w-5 h-5" />
             <span className="text-sm font-medium">Messaging</span>
           </button>
           <button className="flex items-center gap-3 px-3 py-2 text-[#4d6879] hover:bg-white/5 rounded-lg transition-all w-full text-left">
-            <span className="material-symbols-outlined text-[20px]">analytics</span>
+            <BarChart2 className="w-5 h-5" />
             <span className="text-sm font-medium">Analytics</span>
           </button>
         </nav>
@@ -145,8 +170,8 @@ export function ResidentDashboard() {
                 onClick={() => navigate('/resident/emergency')}
                 className="flex items-center justify-center gap-2 bg-critical text-white font-semibold py-3 px-6 rounded-lg shadow-sm hover:opacity-90 transition-opacity"
               >
-                <span className="material-symbols-outlined">sos</span>
-                I need help now
+                <AlertOctagon className="w-5 h-5" />
+                Emergency Alert
               </button>
               <button 
                 onClick={() => navigate('/resident/directory')}
@@ -232,7 +257,7 @@ export function ResidentDashboard() {
                 {[
                   { id: 'plumbing', icon: <Droplet className="w-8 h-8" />, name: 'Plumbing', artisans: 42, color: 'text-[#1b4f63]', bg: 'bg-[#e1f0fc]' },
                   { id: 'electrical', icon: <Zap className="w-8 h-8" />, name: 'Electrical', artisans: 38, color: 'text-warning', bg: 'bg-warning-bg' },
-                  { id: 'cleaning', icon: <span className="material-symbols-outlined text-[32px]">cleaning_services</span>, name: 'Cleaning', artisans: 55, color: 'text-success', bg: 'bg-success-bg' },
+                  { id: 'cleaning', icon: <Sparkles className="w-8 h-8" />, name: 'Cleaning', artisans: 55, color: 'text-success', bg: 'bg-success-bg' },
                   { id: 'generator', icon: <Cog className="w-8 h-8" />, name: 'Generator', artisans: 18, color: 'text-primary', bg: 'bg-primary-fixed' },
                 ].map(service => (
                   <button 
@@ -257,45 +282,59 @@ export function ResidentDashboard() {
                   <h3 className="text-xl font-bold text-on-surface">Trusted Near You</h3>
                   <p className="text-xs text-on-surface-variant mt-1">Highly rated artisans currently in Redemption City</p>
                 </div>
-                <div className="hidden sm:flex gap-2">
-                  <button className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface hover:bg-surface-variant transition-colors"><ChevronLeft className="w-4 h-4" /></button>
-                  <button className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface hover:bg-surface-variant transition-colors"><ChevronRight className="w-4 h-4" /></button>
-                </div>
+                {trustedArtisans.length > 0 && (
+                  <div className="hidden sm:flex gap-2">
+                    <button className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface hover:bg-surface-variant transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+                    <button className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface hover:bg-surface-variant transition-colors"><ChevronRight className="w-4 h-4" /></button>
+                  </div>
+                )}
               </div>
               
-              <div className="flex overflow-x-auto gap-4 pb-4 -mx-4 px-4 md:mx-0 md:px-0 hide-scroll snap-x">
-                {[
-                  { name: 'David Mensah', role: 'Master Plumber', rating: '5.0', reviews: 214, tag: 'VOUCHED', tagColor: 'bg-success-bg text-success', desc: 'Specializes in leak detection, pipe replacement, and emergency water damage control.' },
-                  { name: 'Sarah Johnson', role: 'Deep Cleaning', rating: '4.9', reviews: 188, tag: 'TRUSTED', tagColor: 'bg-[#c7e4f8] text-[#4b6677]', desc: 'Expert in post-construction cleanup, move-in/move-out deep cleaning, and sanitization.' },
-                  { name: 'Emeka Uche', role: 'Gen Specialist', rating: '4.8', reviews: 95, tag: 'VOUCHED', tagColor: 'bg-success-bg text-success', desc: 'Servicing, repair, and installation of Mikano, Perkins, and all major generator brands.' }
-                ].map((artisan, idx) => (
-                  <div key={idx} className="min-w-[280px] w-[280px] bg-white rounded-xl p-4 shadow-sm border border-surface-variant/30 flex flex-col gap-3 snap-start relative">
-                    <div className={`absolute top-4 right-4 flex items-center gap-1 ${artisan.tagColor} px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider`}>
-                      <CheckCircle2 className="w-3 h-3" /> {artisan.tag}
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-full bg-surface-container ring-2 ring-surface-variant flex items-center justify-center text-primary text-xl font-bold">
-                        {artisan.name.charAt(0)}
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-sm text-on-surface">{artisan.name}</h4>
-                        <p className="text-xs text-on-surface-variant">{artisan.role}</p>
-                        <div className="flex items-center gap-1 mt-1 text-warning">
-                          <Star className="w-3 h-3 fill-current" />
-                          <span className="text-xs font-semibold text-on-surface">{artisan.rating}</span>
-                          <span className="text-[10px] text-on-surface-variant">({artisan.reviews})</span>
+              {trustedArtisans.length > 0 ? (
+                <div className="flex overflow-x-auto gap-4 pb-4 -mx-4 px-4 md:mx-0 md:px-0 hide-scroll snap-x">
+                  {trustedArtisans.map((artisan, idx) => {
+                    const isVouched = artisan.artisan_profiles?.verification_status === 'verified';
+                    const tag = isVouched ? 'VOUCHED' : 'TRUSTED';
+                    const tagColor = isVouched ? 'bg-success-bg text-success' : 'bg-[#c7e4f8] text-[#4b6677]';
+                    
+                    return (
+                      <div key={idx} className="min-w-[280px] w-[280px] bg-white rounded-xl p-4 shadow-sm border border-surface-variant/30 flex flex-col gap-3 snap-start relative">
+                        <div className={`absolute top-4 right-4 flex items-center gap-1 ${tagColor} px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider`}>
+                          <CheckCircle2 className="w-3 h-3" /> {tag}
                         </div>
+                        <div className="flex items-center gap-4">
+                          <div className="w-16 h-16 rounded-full bg-surface-container ring-2 ring-surface-variant flex items-center justify-center text-primary text-xl font-bold uppercase">
+                            {artisan.full_name?.charAt(0) || 'A'}
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-sm text-on-surface">{artisan.full_name}</h4>
+                            <p className="text-xs text-on-surface-variant capitalize">{artisan.artisan_profiles?.category || 'General'}</p>
+                            <div className="flex items-center gap-1 mt-1 text-warning">
+                              <Star className="w-3 h-3 fill-current" />
+                              <span className="text-xs font-semibold text-on-surface">{artisan.artisan_profiles?.average_rating || 'New'}</span>
+                              <span className="text-[10px] text-on-surface-variant">({artisan.artisan_profiles?.total_reviews || 0})</span>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-xs text-on-surface-variant line-clamp-2 mt-2 flex-1">
+                          Available for services in your area. Contact for a quote.
+                        </p>
+                        <button className="mt-2 w-full bg-[#1b4f63] text-white font-semibold text-sm py-2 rounded-lg hover:bg-[#003849] transition-colors">
+                          Request Quote
+                        </button>
                       </div>
-                    </div>
-                    <p className="text-xs text-on-surface-variant line-clamp-2 mt-2 flex-1">
-                      {artisan.desc}
-                    </p>
-                    <button className="mt-2 w-full bg-[#1b4f63] text-white font-semibold text-sm py-2 rounded-lg hover:bg-[#003849] transition-colors">
-                      Request Quote
-                    </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl p-8 shadow-sm border border-surface-variant/50 flex flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 bg-surface-container rounded-full flex items-center justify-center text-primary/40 mb-4">
+                    <Search className="w-8 h-8" />
                   </div>
-                ))}
-              </div>
+                  <h4 className="text-lg font-bold text-on-surface mb-1">No Trusted Artisans Found</h4>
+                  <p className="text-sm text-on-surface-variant max-w-sm">We are currently verifying artisans in your area. Check back later.</p>
+                </div>
+              )}
             </section>
           </div>
         </div>
@@ -304,19 +343,19 @@ export function ResidentDashboard() {
       {/* Mobile Bottom Navbar */}
       <nav className="fixed bottom-0 w-full md:hidden z-50 bg-white border-t border-surface-variant shadow-lg flex justify-around items-center h-16 pb-safe">
         <button className="flex flex-col items-center justify-center bg-[#003849] text-[#76a2b6] rounded-xl py-1 px-4">
-          <span className="material-symbols-outlined text-[20px]">home</span>
+          <Home className="w-5 h-5" />
           <span className="text-[10px] font-medium mt-1">Home</span>
         </button>
         <button onClick={() => navigate('/resident/directory')} className="flex flex-col items-center justify-center text-[#41484c] px-4 py-1 rounded-xl">
-          <span className="material-symbols-outlined text-[20px]">work</span>
+          <Briefcase className="w-5 h-5" />
           <span className="text-[10px] font-medium mt-1">Jobs</span>
         </button>
         <button className="flex flex-col items-center justify-center text-[#41484c] px-4 py-1 rounded-xl">
-          <span className="material-symbols-outlined text-[20px]">map</span>
+          <Map className="w-5 h-5" />
           <span className="text-[10px] font-medium mt-1">Map</span>
         </button>
         <button className="flex flex-col items-center justify-center text-[#41484c] px-4 py-1 rounded-xl">
-          <span className="material-symbols-outlined text-[20px]">person</span>
+          <User className="w-5 h-5" />
           <span className="text-[10px] font-medium mt-1">Profile</span>
         </button>
       </nav>
