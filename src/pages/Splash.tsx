@@ -1,9 +1,34 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Briefcase } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function Splash() {
   const [dots, setDots] = useState('');
+  const navigate = useNavigate();
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading) {
+      // Add a small delay to allow the splash to be seen, then route based on role
+      const timeout = setTimeout(() => {
+        if (!user) {
+          navigate('/auth', { replace: true });
+        } else {
+          const role = user.user_metadata?.role;
+          if (role === 'resident') {
+            navigate('/resident/dashboard', { replace: true });
+          } else if (role === 'artisan') {
+            navigate('/artisan/dashboard', { replace: true });
+          } else {
+            navigate('/onboarding/role', { replace: true });
+          }
+        }
+      }, 1500);
+      return () => clearTimeout(timeout);
+    }
+  }, [loading, user, navigate]);
 
   useEffect(() => {
     const interval = setInterval(() => {

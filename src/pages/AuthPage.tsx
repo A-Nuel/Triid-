@@ -23,8 +23,8 @@ export function AuthPage() {
         });
         if (error) throw error;
         
-        // After signup, direct them to check email
-        navigate('/confirm-email', { state: { email } });
+        // After signup, direct them to onboarding (email confirmation is disabled for now)
+        navigate('/onboarding/role');
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
           email,

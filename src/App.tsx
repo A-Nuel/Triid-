@@ -137,6 +137,7 @@ export default function App() {
               <ArtisanLayout />
             </ProtectedRoute>
           }>
+            <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<JobFeed />} />
             <Route path="requests/:id" element={<RequestDetails />} />
             <Route path="en-route/:id" element={<EnRoute />} />
