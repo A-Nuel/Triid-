@@ -1,11 +1,16 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Briefcase, Zap, Users, Settings, Plus, Bell, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, Briefcase, Zap, Users, Settings, LogOut, Bell, HelpCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 export function ArtisanLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth', { replace: true });
+  };
   
   const navItems = [
     { label: 'Dashboard', path: '/artisan/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
@@ -47,8 +52,11 @@ export function ArtisanLayout() {
         </nav>
         
         <div className="p-space-4 border-t border-surface-variant">
-          <button className="w-full bg-[#1b4f63] text-white px-space-4 py-space-3 rounded-md font-semibold text-sm hover:bg-[#153e4d] transition-colors flex items-center justify-center gap-2">
-            <Plus className="w-4 h-4" /> New Request
+          <button 
+            onClick={handleSignOut}
+            className="w-full bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 px-space-4 py-space-3 rounded-md font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+          >
+            <LogOut className="w-4 h-4" /> Sign Out
           </button>
         </div>
       </aside>
