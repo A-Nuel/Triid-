@@ -142,12 +142,24 @@ async function startServer() {
       if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
 
       let query = supabase.from('jobs').select('*, resident:resident_id(full_name, phone)');
+      
       if (mode) query = query.eq('mode', mode);
       if (status) query = query.eq('status', status);
 
       // Simple implementation:
-      // If user is artisan, maybe we just return jobs where status = pending or artisan_id = user.id
-      // but RLS should handle visibility. For demo, we just return the query results.
+      // If user is resident, only show their own jobs.
+      // If user is artisan, show pending jobs (for feed), OR jobs assigned to them (for history/active).
+      const role = user.user_metadata?.role;
+      if (role === 'resident') {
+        query = query.eq('resident_id', user.id);
+      } else if (role === 'artisan') {
+        if (status === 'pending') {
+          query = query.is('artisan_id', null);
+        } else {
+          query = query.eq('artisan_id', user.id);
+        }
+      }
+
       const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) throw error;
