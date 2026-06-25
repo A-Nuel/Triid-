@@ -486,6 +486,107 @@ async function startServer() {
     }
   });
 
+  // --- Artisan Profile & Settings Updates ---
+  apiRouter.put("/artisan/profile", async (req, res) => {
+    try {
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const { bio, skill_categories, starting_price_min, starting_price_max, portfolio_images, full_name } = req.body;
+      
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      // Update full_name in users if provided
+      if (full_name) {
+        await adminClient.auth.admin.updateUserById(user.id, { user_metadata: { full_name } });
+      }
+
+      const { data: profile } = await adminClient.from('artisan_profiles').select('id').eq('user_id', user.id).single();
+      if (!profile) return res.status(404).json({ error: { message: "Artisan profile not found." } });
+
+      const updatePayload: any = {};
+      if (bio !== undefined) updatePayload.bio = bio;
+      if (skill_categories !== undefined) updatePayload.skill_categories = skill_categories;
+      if (starting_price_min !== undefined) updatePayload.starting_price_min = starting_price_min;
+      if (starting_price_max !== undefined) updatePayload.starting_price_max = starting_price_max;
+      
+      try {
+        if (portfolio_images !== undefined) updatePayload.portfolio_images = portfolio_images;
+        
+        const { error } = await adminClient.from('artisan_profiles').update(updatePayload).eq('id', profile.id);
+        if (error) console.error("Error updating profile", error);
+      } catch (e) {
+        console.error(e);
+      }
+
+      res.status(200).json({ message: "Profile updated" });
+    } catch(e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  apiRouter.put("/artisan/availability", async (req, res) => {
+    try {
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const { accepts_emergency, accepts_standard, availability_schedule } = req.body;
+      
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      const { data: profile } = await adminClient.from('artisan_profiles').select('id').eq('user_id', user.id).single();
+      if (!profile) return res.status(404).json({ error: { message: "Artisan profile not found." } });
+
+      const updatePayload: any = {};
+      if (accepts_emergency !== undefined) updatePayload.accepts_emergency = accepts_emergency;
+      if (accepts_standard !== undefined) updatePayload.accepts_standard = accepts_standard;
+      if (availability_schedule !== undefined) updatePayload.availability_schedule = availability_schedule;
+
+      const { error } = await adminClient.from('artisan_profiles').update(updatePayload).eq('id', profile.id);
+      if (error) {
+         console.warn("Could not update availability columns.", error);
+      }
+      
+      // Update older logic is_available based on accepts_standard
+      if (accepts_standard !== undefined) {
+         await adminClient.from('artisan_profiles').update({ is_available: accepts_standard }).eq('id', profile.id);
+      }
+
+      res.status(200).json({ message: "Availability updated" });
+    } catch(e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  apiRouter.get("/artisan/settings", async (req, res) => {
+    try {
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      // Try to fetch all columns. If new columns don't exist, Supabase will just ignore or we handle error by fetching what we can.
+      const { data: profile, error } = await adminClient.from('artisan_profiles').select('*').eq('user_id', user.id).single();
+      if (!profile) return res.status(404).json({ error: { message: "Artisan profile not found." } });
+
+      res.status(200).json({ profile, user });
+    } catch(e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
   app.use('/api/v1', apiRouter);
 
   // Vite middleware for development

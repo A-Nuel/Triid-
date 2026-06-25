@@ -25,6 +25,10 @@ import { WaitingConfirmation } from '@/pages/artisan/WaitingConfirmation';
 import { Wallet } from '@/pages/artisan/Wallet';
 import { ArtisanReports } from '@/pages/artisan/ArtisanReports';
 import { JobHistory } from '@/pages/artisan/JobHistory';
+import { SettingsHub } from '@/pages/artisan/SettingsHub';
+import { SettingsProfile } from '@/pages/artisan/SettingsProfile';
+import { SettingsVerification } from '@/pages/artisan/SettingsVerification';
+import { SettingsAvailability } from '@/pages/artisan/SettingsAvailability';
 
 import { ArtisanDirectory } from '@/pages/resident/ArtisanDirectory';
 import { ArtisanProfile } from '@/pages/resident/ArtisanProfile';
@@ -147,6 +151,10 @@ export default function App() {
             <Route path="history" element={<JobHistory />} />
             <Route path="wallet" element={<Wallet />} />
             <Route path="reports" element={<ArtisanReports />} />
+            <Route path="settings" element={<SettingsHub />} />
+            <Route path="settings/profile" element={<SettingsProfile />} />
+            <Route path="settings/verification" element={<SettingsVerification />} />
+            <Route path="settings/availability" element={<SettingsAvailability />} />
           </Route>
 
           {/* Artisan Full Screen / Active Job Flows */}
