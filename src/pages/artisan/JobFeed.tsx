@@ -1,225 +1,378 @@
 import { useState, useEffect } from 'react';
-import { UserCheck, Zap, Clock, ShieldAlert, ArrowRight } from 'lucide-react';
+import { 
+  CheckCircle2, 
+  MapPin, 
+  AlertTriangle, 
+  UserCircle,
+  ImagePlus,
+  Star,
+  Banknote,
+  PieChart,
+  Zap,
+  Loader2
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase'; // Assuming supabase client exists for auth session
+import { useAuth } from '@/contexts/AuthContext';
 
 export function JobFeed() {
-  const [activeTab, setActiveTab] = useState<'incoming'|'scheduled'>('incoming');
-  const [isAvailable, setIsAvailable] = useState(true);
-  const [jobs, setJobs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { session } = useAuth();
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'emergency'|'standard'>('emergency');
+  const [loading, setLoading] = useState(true);
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [dashboardData, setDashboardData] = useState<any>(null);
 
   useEffect(() => {
-    async function loadJobs() {
+    async function loadData() {
+      if (!session) return;
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-        const res = await fetch('/api/v1/jobs', {
-          headers: { Authorization: `Bearer ${session.access_token}` }
-        });
-        if (res.ok) {
-          const { data } = await res.json();
+        const [jobsRes, dashRes] = await Promise.all([
+          fetch('/api/v1/jobs', { headers: { Authorization: `Bearer ${session.access_token}` } }),
+          fetch('/api/v1/artisan/dashboard', { headers: { Authorization: `Bearer ${session.access_token}` } })
+        ]);
+        
+        if (jobsRes.ok) {
+          const { data } = await jobsRes.json();
           setJobs(data || []);
         }
+        if (dashRes.ok) {
+          const data = await dashRes.json();
+          setDashboardData(data);
+        }
       } catch (err) {
-        console.error("Failed to fetch jobs:", err);
+        console.error("Failed to fetch data:", err);
       } finally {
         setLoading(false);
       }
     }
-    loadJobs();
-  }, []);
+    loadData();
+  }, [session]);
 
-  const pendingJobs = jobs.filter(j => j.status === 'pending' || j.status === 'matched');
+  const toggleEmergency = async () => {
+    if (!dashboardData?.profile) return;
+    const current = dashboardData.profile.accepts_emergency;
+    
+    // Optimistic update
+    setDashboardData({
+      ...dashboardData,
+      profile: {
+        ...dashboardData.profile,
+        accepts_emergency: !current
+      }
+    });
+
+    try {
+      await fetch('/api/v1/artisan/availability', {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token}` 
+        },
+        body: JSON.stringify({ accepts_emergency: !current })
+      });
+    } catch (err) {
+      console.error(err);
+      // Revert on error
+      setDashboardData({
+        ...dashboardData,
+        profile: { ...dashboardData.profile, accepts_emergency: current }
+      });
+    }
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-[50vh]"><Loader2 className="w-8 h-8 animate-spin text-gray-500" /></div>;
+  }
+
+  const user = dashboardData?.user;
+  const profile = dashboardData?.profile;
+  const firstName = user?.user_metadata?.full_name?.split(' ')[0] || "Artisan";
+
+  const emergencyJobs = jobs.filter(j => j.mode === 'emergency');
+  const standardJobs = jobs.filter(j => j.mode === 'scheduled');
 
   return (
-    <div className="max-w-5xl mx-auto p-space-6 md:p-space-8 w-full">
-      {/* Banner */}
-      <div className="bg-primary/5 border border-primary/10 rounded-xl p-space-6 mb-space-8 flex flex-col md:flex-row gap-space-6 items-start">
-        <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center shrink-0">
-          <UserCheck className="w-6 h-6 text-primary" />
-        </div>
-        <div className="flex-1">
-          <h2 className="text-lg font-bold text-primary mb-1">Complete your profile</h2>
-          <p className="text-sm text-on-surface-variant mb-space-4">
-            Adding your trade certifications and verifying your ID increases your visibility to high-priority emergency dispatches by up to 40%.
-          </p>
-          <div className="w-full max-w-sm h-2 bg-surface-variant rounded-full overflow-hidden mb-2">
-            <div className="h-full bg-[#1b4f63] w-[60%]" />
-          </div>
-          <p className="text-xs text-on-surface-variant mb-space-2 font-medium">60% Complete</p>
-          <button className="text-sm font-semibold text-primary flex items-center gap-1 hover:underline">
-            Update Profile Now <ArrowRight className="w-4 h-4"/>
-          </button>
-        </div>
+    <div className="max-w-6xl mx-auto p-4 md:p-8 space-y-6 lg:space-y-8 animate-in fade-in duration-300">
+      
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl md:text-4xl font-bold text-[#001f29] tracking-tight">
+          Good morning, {firstName}.
+        </h1>
+        <p className="text-gray-500 mt-2 text-lg">Here's your performance snapshot for today.</p>
       </div>
 
-      {/* Header & Toggle */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-space-6 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-primary mb-1 tracking-tight">Job Feed</h1>
-          <p className="text-on-surface-variant text-sm">Review your incoming and upcoming requests.</p>
-        </div>
-        <button 
-          onClick={() => setIsAvailable(!isAvailable)}
-          className={`flex items-center gap-2 px-space-4 py-2 rounded-full border text-sm font-medium transition-colors ${
-            isAvailable 
-              ? 'bg-green-50 border-green-200 text-green-800' 
-              : 'bg-surface-variant/50 border-outline-variant text-on-surface-variant'
-          }`}
-        >
-          <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${isAvailable ? 'bg-green-600' : 'bg-outline'} relative`}>
-            <div className={`w-3 h-3 bg-white rounded-full transition-transform ${isAvailable ? 'translate-x-4' : 'translate-x-0'}`} />
+      {/* Stats Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Earnings */}
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-600 shrink-0">
+            <Banknote className="w-6 h-6" />
           </div>
-          Available for jobs
-        </button>
-      </div>
-
-      {/* Active Job Banner */}
-      {jobs.filter(j => j.status === 'accepted' || j.status === 'in_progress').map(job => (
-        <div key={job.id} onClick={() => navigate(job.status === 'in_progress' ? `/artisan/in-progress/${job.id}` : `/artisan/en-route/${job.id}`)} className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 cursor-pointer hover:bg-blue-100 transition flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-blue-900">Active {job.mode === 'emergency' ? 'Emergency' : 'Job'}</h3>
-            <p className="text-sm text-blue-700">{job.description}</p>
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Today's Earnings</div>
+            <div className="text-2xl font-bold text-gray-900">₦ {profile?.todays_earnings?.toLocaleString() || "0"}</div>
           </div>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold">
-            {job.status === 'in_progress' ? 'Resume Work' : 'Go to Map'}
-          </button>
         </div>
-      ))}
 
-      {/* Tabs */}
-      <div className="flex border-b border-surface-variant mb-space-6">
-        <button 
-          onClick={() => setActiveTab('incoming')}
-          className={`px-space-4 py-space-3 font-semibold text-sm flex items-center gap-2 border-b-2 transition-colors ${
-            activeTab === 'incoming' 
-              ? 'border-primary text-primary' 
-              : 'border-transparent text-on-surface-variant hover:text-on-surface'
-          }`}
-        >
-          Incoming <span className="bg-surface-variant text-on-surface-variant text-xs px-2 py-0.5 rounded-full">3</span>
-        </button>
-        <button 
-          onClick={() => setActiveTab('scheduled')}
-          className={`px-space-4 py-space-3 font-semibold text-sm flex items-center gap-2 border-b-2 transition-colors ${
-            activeTab === 'scheduled' 
-              ? 'border-primary text-primary' 
-              : 'border-transparent text-on-surface-variant hover:text-on-surface'
-          }`}
-        >
-          Scheduled
-        </button>
+        {/* Completion Rate */}
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 shrink-0">
+            <PieChart className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Completion Rate</div>
+            <div className="text-2xl font-bold text-gray-900">{profile?.completion_rate || 0}%</div>
+          </div>
+        </div>
+
+        {/* Avg Rating */}
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-orange-50 flex items-center justify-center text-orange-500 shrink-0">
+            <Star className="w-6 h-6 fill-current" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Avg Rating</div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-gray-900">{profile?.average_rating || "0.0"}</span>
+              <span className="text-sm font-medium text-gray-500">({profile?.total_jobs_completed || 0} jobs)</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Content */}
-      <div className="space-y-space-4">
-        {loading ? (
-             <div className="text-center py-space-12 text-on-surface-variant flex flex-col items-center">
-               <div className="w-8 h-8 rounded-full border-4 border-surface-variant border-t-primary animate-spin mb-4" />
-               <p className="font-medium">Loading jobs...</p>
-             </div>
-        ) : activeTab === 'incoming' ? (
-          pendingJobs.length > 0 ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-space-4">
-              {pendingJobs.map((job) => (
-                <div key={job.id} className="bg-white border text-left border-surface-variant rounded-xl flex flex-col relative overflow-hidden shadow-sm">
-                  <div className={`absolute top-0 left-0 w-1 h-full ${job.mode === 'emergency' ? 'bg-critical' : 'bg-[#1b4f63]'}`} />
-                  <div className="p-space-6 flex flex-col h-full">
-                    <div className="flex justify-between items-start mb-space-4">
-                      {job.mode === 'emergency' ? (
-                          <span className="bg-critical-bg text-critical text-xs font-bold px-2 py-1 flex items-center gap-1 rounded-sm tracking-widest uppercase">
-                            <span className="w-1.5 h-1.5 bg-critical rounded-full animate-pulse" /> Emergency
-                          </span>
-                      ) : (
-                          <span className="bg-surface-variant text-on-surface text-xs font-bold px-2 py-1 flex items-center gap-1 rounded-sm tracking-widest uppercase">
-                            Standard
-                          </span>
-                      )}
-                      
-                      <span className="text-xs font-mono text-on-surface-variant">
-                         {new Date(job.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    
-                    <h3 className="text-lg font-bold text-primary mb-2 capitalize">{job.description.substring(0, 40)}{job.description.length > 40 ? '...' : ''}</h3>
-                    <div className="space-y-1 mb-space-4">
-                      <p className="text-sm flex items-center gap-2 text-on-surface">
-                        <span className="text-on-surface-variant">📍</span> {job.location?.coordinates ? `[Location Data]` : 'Location pending'}
-                      </p>
-                      <p className="text-sm flex items-center gap-2 text-on-surface">
-                        <span className="text-on-surface-variant">🏷️</span> <span className="capitalize">{job.category}</span>
-                      </p>
-                    </div>
-                    
-                    <p className="text-sm text-on-surface-variant mb-space-6 flex-1">
-                      {job.description}
-                    </p>
-                    
-                    <div className="flex gap-space-3 mt-auto">
-                      {job.mode === 'emergency' ? (
-                          <button 
-                            onClick={() => navigate(`/artisan/emergency/${job.id}`)}
-                            className="flex-1 bg-critical text-white font-semibold text-sm py-2 px-4 rounded-md hover:bg-[#b3261e] shadow-sm"
-                          >
-                            Accept Dispatch
-                          </button>
-                      ) : (
-                          <button 
-                            onClick={() => navigate(`/artisan/requests/${job.id}`)}
-                            className="w-full bg-[#1b4f63] text-white font-semibold text-sm py-2 px-4 rounded-md hover:bg-[#153e4d] shadow-sm"
-                          >
-                            Review Request
-                          </button>
-                      )}
-                    </div>
-                  </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+        
+        {/* Main Column */}
+        <div className="lg:col-span-2 space-y-6">
+          
+          {/* Emergency Toggle Card */}
+          <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-sm flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 shrink-0">
+                <Zap className="w-6 h-6 fill-current" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Emergency Dispatch</h3>
+                <p className="text-sm text-gray-500 hidden sm:block">Available for urgent {profile?.skill_categories?.[0]?.toLowerCase() || "services"} jobs</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <span className={`text-sm font-bold ${profile?.accepts_emergency ? 'text-green-600' : 'text-gray-400'}`}>
+                {profile?.accepts_emergency ? 'Active' : 'Inactive'}
+              </span>
+              <button 
+                onClick={toggleEmergency}
+                className={`w-14 h-8 rounded-full p-1 flex items-center transition-colors focus:outline-none ${profile?.accepts_emergency ? 'bg-blue-600 justify-end' : 'bg-gray-300 justify-start'}`}
+              >
+                <div className="w-6 h-6 bg-white rounded-full shadow-sm flex items-center justify-center">
+                  {profile?.accepts_emergency && <CheckCircle2 className="w-4 h-4 text-blue-600" />}
                 </div>
-              ))}
+              </button>
             </div>
-          ) : (
-            <div className="text-center py-space-12 text-on-surface-variant flex flex-col items-center">
-              <Clock className="w-12 h-12 mb-space-4 text-outline-variant" />
-              <p className="font-medium text-on-surface mb-1">No incoming jobs</p>
-              <p className="text-sm">You are currently looking for jobs. Incoming requests will appear here.</p>
+          </div>
+
+          {/* Job Feed Tabs */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="flex border-b border-gray-200">
+              <button 
+                onClick={() => setActiveTab('emergency')}
+                className={`flex-1 py-4 text-center font-bold text-sm transition-colors flex justify-center items-center gap-2 ${
+                  activeTab === 'emergency' 
+                    ? 'text-red-600 border-b-2 border-red-600 bg-red-50/30' 
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <AlertTriangle className="w-4 h-4" /> Emergency Dispatch
+              </button>
+              <button 
+                onClick={() => setActiveTab('standard')}
+                className={`flex-1 py-4 text-center font-bold text-sm transition-colors ${
+                  activeTab === 'standard' 
+                    ? 'text-[#001f29] border-b-2 border-[#001f29] bg-gray-50/50' 
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                Standard Bookings
+              </button>
             </div>
-          )
-        ) : activeTab === 'scheduled' ? (
-          jobs.filter(j => j.mode === 'scheduled' && (j.status === 'accepted' || j.status === 'confirmed')).length > 0 ? (
-            <div className="grid grid-cols-1 gap-space-4">
-              {jobs.filter(j => j.mode === 'scheduled' && (j.status === 'accepted' || j.status === 'confirmed')).map((job) => (
-                <div key={job.id} className="bg-white border text-left border-surface-variant rounded-xl flex flex-col p-space-6 shadow-sm">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="bg-surface-variant text-on-surface text-xs font-bold px-2 py-1 flex items-center rounded-sm tracking-widest uppercase">
-                      Scheduled
-                    </span>
-                    <span className="text-xs font-mono text-on-surface-variant">
-                       {new Date(job.scheduled_for || job.created_at).toLocaleString()}
-                    </span>
+
+            {/* Job List */}
+            <div className="p-4 sm:p-6 space-y-4">
+              {activeTab === 'emergency' ? (
+                emergencyJobs.length > 0 ? (
+                  emergencyJobs.map(job => (
+                    <div key={job.id} className="border-l-4 border-l-red-600 bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col gap-4 relative overflow-hidden">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-bold text-lg text-gray-900">{job.description}</h4>
+                          <div className="flex items-center gap-1.5 text-gray-500 text-sm mt-1">
+                            <MapPin className="w-4 h-4" /> {job.location?.coordinates ? `[Lat: ${job.location.coordinates[1]}, Lng: ${job.location.coordinates[0]}]` : 'Address pending'}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-red-600 text-white uppercase tracking-wider mb-1">
+                            90s Response
+                          </div>
+                          <div className="font-bold text-lg text-red-600">₦ {job.estimated_amount || "15,000"}</div>
+                          <div className="text-xs text-gray-500 font-medium">Est. 1h job</div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-3 mt-2">
+                        <button 
+                          onClick={() => navigate(`/artisan/emergency/${job.id}`)}
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-lg transition-colors"
+                        >
+                          Accept Now
+                        </button>
+                        <button className="flex-1 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-2.5 rounded-lg transition-colors">
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12 text-gray-500">
+                    <Zap className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="font-medium text-gray-900">No active emergencies</p>
+                    <p className="text-sm mt-1">Stay online to receive urgent requests.</p>
                   </div>
-                  <h3 className="text-lg font-bold text-primary mb-2 capitalize">{job.description}</h3>
-                  <div className="flex gap-space-3 mt-4">
-                    <button 
-                      onClick={() => navigate(`/artisan/in-progress/${job.id}`)}
-                      className="flex-1 bg-primary text-white font-semibold text-sm py-2 px-4 rounded-md hover:bg-primary/90 shadow-sm"
-                    >
-                      Start Work
+                )
+              ) : (
+                standardJobs.length > 0 ? (
+                  standardJobs.map(job => (
+                     <div key={job.id} className="border-l-4 border-l-[#003849] bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col gap-4">
+                       <div className="flex justify-between items-start">
+                         <div>
+                           <h4 className="font-bold text-lg text-gray-900">{job.description}</h4>
+                           <div className="flex items-center gap-1.5 text-gray-500 text-sm mt-1">
+                             <MapPin className="w-4 h-4" /> Scheduled for {new Date(job.scheduled_for || job.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                           </div>
+                         </div>
+                         <div className="text-right">
+                           <div className="font-bold text-lg text-[#003849]">₦ {job.estimated_amount || "Negotiable"}</div>
+                         </div>
+                       </div>
+                       
+                       <div className="flex gap-3 mt-2">
+                         <button 
+                           onClick={() => navigate(`/artisan/requests/${job.id}`)}
+                           className="flex-1 bg-[#001f29] hover:bg-black text-white font-bold py-2.5 rounded-lg transition-colors"
+                         >
+                           View Details
+                         </button>
+                       </div>
+                     </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12 text-gray-500">
+                    <UserCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="font-medium text-gray-900">No standard bookings</p>
+                    <p className="text-sm mt-1">Check back later for new requests.</p>
+                  </div>
+                )
+              )}
+
+              {/* Mock missed emergency card */}
+              {activeTab === 'emergency' && (
+                <div className="border-l-4 border-l-gray-300 bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col gap-4 opacity-75">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-bold text-lg text-gray-700">Overflowing Toilet</h4>
+                      <div className="flex items-center gap-1.5 text-gray-500 text-sm mt-1">
+                        <MapPin className="w-4 h-4" /> Block 4, 1004 Estate
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-lg text-gray-500">₦ 12,500</div>
+                      <div className="text-xs text-gray-400 font-medium">Est. 45m job</div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex mt-2">
+                    <button disabled className="w-full bg-gray-200 text-gray-500 font-bold py-2.5 rounded-lg cursor-not-allowed">
+                      Missed (Timed Out)
                     </button>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
-          ) : (
-            <div className="text-center py-space-12 text-on-surface-variant flex flex-col items-center">
-              <Clock className="w-12 h-12 mb-space-4 text-outline-variant" />
-              <p className="font-medium text-on-surface mb-1">No scheduled jobs</p>
-              <p className="text-sm">Your upcoming booked jobs will appear here.</p>
-            </div>
-          )
-        ) : null}
-      </div>
+          </div>
+        </div>
 
+        {/* Right Column */}
+        <div className="space-y-6">
+          
+          {/* Profile Completion */}
+          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+                <UserCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900 leading-tight">Profile Completion</h3>
+                <p className="text-xs text-gray-500">Get more jobs by completing your profile</p>
+              </div>
+            </div>
+
+            <div className="mt-4 mb-6">
+              <div className="flex justify-between text-sm font-bold text-gray-700 mb-2">
+                <span>Progress</span>
+                <span>{profile?.completion_percentage || 50}%</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2.5">
+                <div className="bg-[#003849] h-2.5 rounded-full" style={{ width: `${profile?.completion_percentage || 50}%` }}></div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button 
+                onClick={() => navigate('/artisan/settings/profile')}
+                className="w-full flex items-center justify-center gap-2 bg-[#001f29] hover:bg-black text-white font-bold py-2.5 px-4 rounded-lg transition-colors"
+              >
+                <ImagePlus className="w-4 h-4" /> Add Portfolio
+              </button>
+              <button 
+                onClick={() => navigate('/artisan/settings/verification')}
+                className="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 font-bold py-2.5 px-4 rounded-lg transition-colors"
+              >
+                Verify Identity {profile?.verification_status === 'pending' ? '(Pending)' : ''}
+              </button>
+            </div>
+          </div>
+
+          {/* Current Zone Map */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="relative h-48 bg-gray-200">
+              <img 
+                src="https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2074&auto=format&fit=crop" 
+                alt="Map View" 
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-[#001f29]/10" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                <div className="relative">
+                  <MapPin className="w-10 h-10 text-red-600 fill-red-600 drop-shadow-md" />
+                  <div className="absolute top-1/2 left-1/2 w-4 h-4 -translate-x-1/2 -translate-y-1/2 bg-white rounded-full" />
+                </div>
+              </div>
+              <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-md text-xs font-bold text-gray-900 shadow-sm">
+                Current Zone: Victoria Island
+              </div>
+            </div>
+            <div className="p-5">
+              <h4 className="font-bold text-gray-900 mb-1">High Demand Area</h4>
+              <p className="text-sm text-gray-500">
+                Stay in your current zone for <span className="font-bold text-gray-900">2x dispatch priority</span>.
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </div>
     </div>
   );
 }
+

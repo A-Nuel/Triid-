@@ -59,6 +59,7 @@ async function startServer() {
   
   // Custom middleware to capture raw body primarily for Paystack webhook verification (PRD 16.4)
   app.use(express.json({
+    limit: '50mb',
     verify: (req: any, res, buf) => {
       req.rawBody = buf;
     }
@@ -587,7 +588,56 @@ async function startServer() {
     }
   });
 
+  apiRouter.get("/artisan/dashboard", async (req, res) => {
+    try {
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      // Get profile stats
+      const { data: profile } = await adminClient.from('artisan_profiles').select('*').eq('user_id', user.id).single();
+      if (!profile) return res.status(404).json({ error: { message: "Artisan profile not found." } });
+
+      // Get today's earnings (from payments table or mock)
+      // Since payments table might not have everything, let's just send the profile info and some derived/mocked stats
+      // We will calculate completion profile progress
+      let fieldsFilled = 0;
+      const totalFields = 6;
+      if (profile.bio) fieldsFilled++;
+      if (profile.skill_categories && profile.skill_categories.length > 0) fieldsFilled++;
+      if (profile.starting_price_min) fieldsFilled++;
+      if (profile.portfolio_images && profile.portfolio_images.length > 0) fieldsFilled++;
+      if (profile.verification_status === 'verified') fieldsFilled++;
+      if (profile.location) fieldsFilled++;
+      
+      const completion_percentage = Math.round((fieldsFilled / totalFields) * 100);
+
+      res.status(200).json({
+        profile: {
+          ...profile,
+          completion_percentage,
+          completion_rate: 94, // Mocked for now
+          todays_earnings: 45200 // Mocked for now
+        },
+        user
+      });
+    } catch(e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
   app.use('/api/v1', apiRouter);
+
+  // Global API Error Handler to return JSON instead of HTML for middleware errors (like PayloadTooLarge)
+  app.use('/api/v1', (err: any, req: any, res: any, next: any) => {
+    console.error('API Error:', err.message);
+    res.status(err.status || 500).json({ error: { message: err.message || 'Internal Server Error' } });
+  });
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
