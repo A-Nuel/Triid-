@@ -57,13 +57,23 @@ export function AuthPage() {
 
   const handleGoogleSignIn = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/splash`
+          redirectTo: `${window.location.origin}/splash`,
+          skipBrowserRedirect: true
         }
       });
       if (error) throw error;
+      
+      if (data?.url) {
+        const link = document.createElement('a');
+        link.href = data.url;
+        link.target = '_top';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
     } catch (err: any) {
       setError(err.message);
     }

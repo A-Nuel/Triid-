@@ -139,6 +139,7 @@ export default function App() {
           }>
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<JobFeed />} />
+            <Route path="requests" element={<JobHistory />} />
             <Route path="requests/:id" element={<RequestDetails />} />
             <Route path="en-route/:id" element={<EnRoute />} />
             <Route path="in-progress/:id" element={<InProgress />} />
