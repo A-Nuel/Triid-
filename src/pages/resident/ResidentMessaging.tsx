@@ -558,7 +558,7 @@ export function ResidentMessaging() {
                   type="text"
                   value={input}
                   onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   placeholder={uploadingMedia ? "Uploading..." : "Type your message here..."}
                   disabled={uploadingMedia}
                   className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1b4f63]/30 focus:border-[#1b4f63] shadow-sm disabled:bg-gray-50"
@@ -575,7 +575,7 @@ export function ResidentMessaging() {
                 </button>
               ) : input.trim() ? (
                 <button
-                  onClick={() => sendMessage(input)}
+                  onClick={() => sendMessage()}
                   disabled={sending || uploadingMedia}
                   className="w-10 h-10 rounded-xl bg-[#1b4f63] text-white flex items-center justify-center hover:bg-[#003849] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex-shrink-0 shadow-sm"
                 >

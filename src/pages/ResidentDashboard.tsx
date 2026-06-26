@@ -191,7 +191,7 @@ export function ResidentDashboard() {
       <main className="flex-1 flex flex-col md:ml-64 min-h-screen pb-20 md:pb-0">
         
         {/* Header Zone */}
-        <header className="bg-primary text-white sticky top-0 md:z-30 px-6 py-6 shadow-md border-b border-[#003849]">
+        <header className="bg-primary text-white relative z-20 md:sticky md:top-0 md:z-30 px-6 py-6 shadow-md border-b border-[#003849]">
           <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h2 className="text-2xl md:text-3xl font-bold tracking-tight">{getGreeting()}, {userName || user?.user_metadata?.full_name?.split(' ')[0] || 'Resident'}</h2>
@@ -385,12 +385,12 @@ export function ResidentDashboard() {
           <span className="text-[10px] font-medium mt-1">Home</span>
         </button>
         <button onClick={() => navigate('/resident/directory')} className="flex flex-col items-center justify-center text-[#41484c] px-4 py-1 rounded-xl">
-          <Briefcase className="w-5 h-5" />
-          <span className="text-[10px] font-medium mt-1">Jobs</span>
+          <Store className="w-5 h-5" />
+          <span className="text-[10px] font-medium mt-1">Browse</span>
         </button>
-        <button className="flex flex-col items-center justify-center text-[#41484c] px-4 py-1 rounded-xl">
-          <Map className="w-5 h-5" />
-          <span className="text-[10px] font-medium mt-1">Map</span>
+        <button onClick={() => navigate('/resident/messages')} className="flex flex-col items-center justify-center text-[#41484c] px-4 py-1 rounded-xl">
+          <MessageSquare className="w-5 h-5" />
+          <span className="text-[10px] font-medium mt-1">Inbox</span>
         </button>
         <button className="flex flex-col items-center justify-center text-[#41484c] px-4 py-1 rounded-xl">
           <User className="w-5 h-5" />
