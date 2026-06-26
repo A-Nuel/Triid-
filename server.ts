@@ -254,7 +254,9 @@ async function startServer() {
       if (error) throw error;
       res.status(200).json({ data });
     } catch(e: any) {
-      res.status(500).json({ error: { message: e.message } });
+      const errorCode = 'ERR-' + require('crypto').randomBytes(3).toString('hex').toUpperCase();
+      console.error(`[${errorCode}] Create Message API Error:`, e);
+      res.status(500).json({ error: { message: `An unexpected error occurred. If the error persists on user end please contact us with this error code: ${errorCode}`, code: errorCode } });
     }
   });
 
@@ -336,7 +338,21 @@ async function startServer() {
         jobData.estimated_amount = 15000;
         
       } else if (mode === 'scheduled') {
-        jobData.artisan_id = artisan_id;
+        // Resolve artisan_id (if it's an artisan_profiles.id, get the user_id)
+        const adminClient = createClient(
+          process.env.VITE_SUPABASE_URL || "",
+          process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+        );
+        let finalArtisanId = artisan_id;
+        const { data: userCheck } = await adminClient.from('users').select('id').eq('id', artisan_id).maybeSingle();
+        if (!userCheck) {
+          const { data: profileCheck } = await adminClient.from('artisan_profiles').select('user_id').eq('id', artisan_id).maybeSingle();
+          if (profileCheck && profileCheck.user_id) {
+            finalArtisanId = profileCheck.user_id;
+          }
+        }
+        
+        jobData.artisan_id = finalArtisanId;
         jobData.scheduled_for = scheduled_for;
         jobData.category = "other"; // Fallback, could fetch from artisan
         jobData.estimated_amount = 10000;
@@ -388,10 +404,11 @@ async function startServer() {
       return res.status(201).json({ data: insertedJob });
     } catch (error: any) {
       console.error("Job creation error:", error);
+      const errorCode = 'ERR-' + require('crypto').randomBytes(3).toString('hex').toUpperCase();
       if (error && typeof error === 'object' && 'errors' in error) {
         return res.status(400).json({ error: { message: "Validation failed", details: error.errors } });
       }
-      res.status(500).json({ error: { message: error.message || "Failed to process job." } });
+      res.status(500).json({ error: { message: `An unexpected error occurred. If the error persists on user end please contact us with this error code: ${errorCode}`, code: errorCode } });
     }
   });
 
@@ -450,6 +467,22 @@ async function startServer() {
       await sendNotification(adminClient, job.resident_id, "Offer Accepted", `Your booking offer for job ${id.slice(0,8)} was accepted. You can now pay to escrow.`);
 
       res.status(200).json({ message: "Offer accepted" });
+    } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  // MOCK endpoint for testing Custom Offer flow without Artisan login
+  apiRouter.post("/jobs/:id/mock-accept", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+      const { error } = await adminClient.from('jobs').update({ status: 'matched' }).eq('id', id);
+      if (error) throw error;
+      res.status(200).json({ message: "Mock accept successful" });
     } catch (e: any) {
       res.status(500).json({ error: { message: e.message } });
     }
@@ -940,12 +973,22 @@ async function startServer() {
         process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
       );
 
+      // Resolve receiver_id (if it's an artisan_profiles.id, get the user_id)
+      let finalReceiverId = receiver_id;
+      const { data: userCheck } = await adminClient.from('users').select('id').eq('id', receiver_id).maybeSingle();
+      if (!userCheck) {
+        const { data: profileCheck } = await adminClient.from('artisan_profiles').select('user_id').eq('id', receiver_id).maybeSingle();
+        if (profileCheck && profileCheck.user_id) {
+          finalReceiverId = profileCheck.user_id;
+        }
+      }
+
       const { data: message, error } = await adminClient
         .from("messages")
         .insert({
           job_id,
           sender_id: user.id,
-          receiver_id,
+          receiver_id: finalReceiverId,
           content: content.trim(),
           is_read: false,
           message_type: message_type || 'text',
@@ -1206,16 +1249,21 @@ async function startServer() {
         process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
       );
 
-      // Update the user's supabase metadata
+      // Update the user's supabase metadata and the users table
       const { error } = await adminClient.auth.admin.updateUserById(user.id, {
         user_metadata: { phone_verified: true, verified_phone: phoneNumber }
       });
+      if (!error) {
+        await adminClient.from('users').update({ phone: phoneNumber }).eq('id', user.id);
+      }
 
       if (error) throw error;
 
       res.status(200).json({ success: true, phoneNumber });
     } catch (e: any) {
-      res.status(500).json({ error: { message: e.message } });
+      const errorCode = 'ERR-' + require('crypto').randomBytes(3).toString('hex').toUpperCase();
+      console.error(`[${errorCode}] Verify Phone API Error:`, e);
+      res.status(500).json({ error: { message: `An unexpected error occurred. If the error persists on user end please contact us with this error code: ${errorCode}`, code: errorCode } });
     }
   });
 

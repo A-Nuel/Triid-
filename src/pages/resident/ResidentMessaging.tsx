@@ -290,17 +290,24 @@ export function ResidentMessaging() {
             ? `POINT(${position.coords.longitude} ${position.coords.latitude})` 
             : 'POINT(3.3792 6.5244)';
 
-         const { data: job, error: jobError } = await supabase.from('jobs').insert({
-            resident_id: user.id,
-            artisan_id: selectedConv.partnerId,
-            mode: 'scheduled',
-            category: 'other',
-            description: 'Resident requested a quote.',
-            location: locStr,
-            status: 'pending'
-         }).select('id').single();
+         const res = await fetch('/api/v1/jobs', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+           body: JSON.stringify({
+             artisan_id: selectedConv.partnerId,
+             mode: 'scheduled',
+             category: 'other',
+             description: 'Resident requested a quote.',
+             location: locStr,
+             status: 'pending'
+           })
+         });
          
-         if (jobError) throw jobError;
+         if (!res.ok) {
+           const errData = await res.json();
+           throw new Error(errData.error?.message || "Failed to create job");
+         }
+         const { data: job } = await res.json();
          
          // Now send message
          await fetch('/api/v1/messages', {
@@ -511,7 +518,26 @@ export function ResidentMessaging() {
                                   <div className="font-bold border-b border-white/20 pb-1 mb-1">Booking Request</div>
                                   <div className="whitespace-pre-wrap text-sm opacity-90">{msg.content.replace('Booking Offer:\n', '')}</div>
                                   {jobInfo?.status === 'pending' && (
-                                    <div className="mt-2 text-xs italic opacity-80">Waiting for artisan to accept...</div>
+                                    <div className="mt-2 flex flex-col gap-2 border-t border-white/20 pt-2">
+                                      <div className="text-xs italic opacity-80 flex items-center gap-1.5">
+                                        <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                                        Waiting for artisan to accept...
+                                      </div>
+                                      <button 
+                                        onClick={async () => {
+                                          try {
+                                            await fetch(`/api/v1/jobs/${jobInfo.id}/mock-accept`, { method: 'POST' });
+                                            window.location.reload();
+                                          } catch (e) {
+                                            console.error("Mock failed", e);
+                                          }
+                                        }}
+                                        className="bg-black/20 hover:bg-black/30 text-white py-1.5 px-3 rounded-lg text-xs font-bold transition-colors w-max flex items-center gap-1.5"
+                                        title="Click to simulate Artisan accepting the offer (For Testing)"
+                                      >
+                                        Mock Artisan Accept (Test)
+                                      </button>
+                                    </div>
                                   )}
                                   {jobInfo?.status === 'matched' && (
                                     <button 
