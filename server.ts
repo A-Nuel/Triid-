@@ -4,13 +4,14 @@ import path from "path";
 import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import webpush from "web-push";
-import * as admin from 'firebase-admin';
+import { initializeApp, cert } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
 // Initialize Firebase Admin (Only if env vars are provided)
 if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
   try {
-    admin.initializeApp({
-      credential: admin.credential.cert({
+    initializeApp({
+      credential: cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         // Replace escaped newlines
@@ -1236,8 +1237,8 @@ async function startServer() {
         return res.status(500).json({ error: { message: "Firebase Admin is not configured. Please add FIREBASE_PRIVATE_KEY to .env" } });
       }
 
-      // Verify the Firebase ID token
-      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      // Use Firebase Admin SDK to decode the token securely
+      const decodedToken = await getAuth().verifyIdToken(idToken);
       const phoneNumber = decodedToken.phone_number;
 
       if (!phoneNumber) {
