@@ -1,6 +1,6 @@
 // Triid Service Worker — Offline-First PWA Shell
-const CACHE_NAME = 'triid-shell-v2';
-const API_CACHE = 'triid-api-v2';
+const CACHE_NAME = 'triid-shell-v3';
+const API_CACHE = 'triid-api-v3';
 
 
 // App shell assets to pre-cache
@@ -45,6 +45,9 @@ self.addEventListener('fetch', (event) => {
 
   // 1. API calls: network-first, fallback to cache
   if (url.pathname.startsWith('/api/')) {
+    if (event.request.method !== 'GET') {
+      return; // Do not intercept POST/PUT/DELETE requests, let them pass through
+    }
     event.respondWith(networkFirstWithCache(event.request, API_CACHE));
     return;
   }
