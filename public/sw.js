@@ -1,6 +1,7 @@
 // Triid Service Worker — Offline-First PWA Shell
-const CACHE_NAME = 'triid-shell-v1';
-const API_CACHE = 'triid-api-v1';
+const CACHE_NAME = 'triid-shell-v2';
+const API_CACHE = 'triid-api-v2';
+
 
 // App shell assets to pre-cache
 const SHELL_ASSETS = [
@@ -36,13 +37,19 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
+  // 0. CRITICAL: Never intercept non-GET requests to Supabase (uploads, auth).
+  //    Intercepting these strips CORS headers and breaks storage uploads from Vercel.
+  if (url.hostname.includes('supabase.co') && event.request.method !== 'GET') {
+    return; // Let browser handle directly — no SW involvement
+  }
+
   // 1. API calls: network-first, fallback to cache
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(networkFirstWithCache(event.request, API_CACHE));
     return;
   }
 
-  // 2. Supabase storage (portfolio images): cache-first, 7 day TTL
+  // 2. Supabase storage GET (portfolio images): cache-first, 7 day TTL
   if (url.hostname.includes('supabase.co') && url.pathname.includes('/storage/')) {
     event.respondWith(cacheFirstWithRefresh(event.request, API_CACHE));
     return;
@@ -60,6 +67,7 @@ self.addEventListener('fetch', (event) => {
   // 4. Everything else: network only
   event.respondWith(fetch(event.request));
 });
+
 
 // ─── Strategy Helpers ─────────────────────────────────────────────────────
 

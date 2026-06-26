@@ -126,7 +126,7 @@ export function ResidentDashboard() {
             <Zap className="w-5 h-5" />
             <span className="text-sm font-medium">Active Dispatches</span>
           </button>
-          <button className="flex items-center gap-3 px-3 py-2 text-[#4d6879] hover:bg-white/5 rounded-lg transition-all w-full text-left">
+          <button onClick={() => navigate('/resident/messages')} className="flex items-center gap-3 px-3 py-2 text-[#4d6879] hover:bg-white/5 rounded-lg transition-all w-full text-left">
             <MessageSquare className="w-5 h-5" />
             <span className="text-sm font-medium">Messaging</span>
           </button>

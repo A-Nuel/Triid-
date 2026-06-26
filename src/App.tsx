@@ -29,6 +29,7 @@ import { SettingsHub } from '@/pages/artisan/SettingsHub';
 import { SettingsProfile } from '@/pages/artisan/SettingsProfile';
 import { SettingsVerification } from '@/pages/artisan/SettingsVerification';
 import { SettingsAvailability } from '@/pages/artisan/SettingsAvailability';
+import { ArtisanMessaging } from '@/pages/artisan/ArtisanMessaging';
 
 import { ArtisanDirectory } from '@/pages/resident/ArtisanDirectory';
 import { ArtisanProfile } from '@/pages/resident/ArtisanProfile';
@@ -40,6 +41,7 @@ import { EmergencySecurePayment } from '@/pages/resident/EmergencySecurePayment'
 import { EmergencyLiveTracking } from '@/pages/resident/EmergencyLiveTracking';
 import { ConfirmCompletion } from '@/pages/resident/ConfirmCompletion';
 import { RateAndVouch } from '@/pages/resident/RateAndVouch';
+import { ResidentMessaging } from '@/pages/resident/ResidentMessaging';
 
 // Protected Route Component
 function ProtectedRoute({ children, role }: { children: React.ReactNode, role?: 'resident' | 'artisan' }) {
@@ -151,11 +153,15 @@ export default function App() {
             <Route path="history" element={<JobHistory />} />
             <Route path="wallet" element={<Wallet />} />
             <Route path="reports" element={<ArtisanReports />} />
+            <Route path="messages" element={<ArtisanMessaging />} />
             <Route path="settings" element={<SettingsHub />} />
             <Route path="settings/profile" element={<SettingsProfile />} />
             <Route path="settings/verification" element={<SettingsVerification />} />
             <Route path="settings/availability" element={<SettingsAvailability />} />
           </Route>
+
+          {/* Resident Messaging */}
+          <Route path="/resident/messages" element={<ProtectedRoute><ResidentMessaging /></ProtectedRoute>} />
 
           {/* Artisan Full Screen / Active Job Flows */}
           <Route path="/artisan/emergency/:id" element={<ProtectedRoute role="artisan"><EmergencyTakeover /></ProtectedRoute>} />

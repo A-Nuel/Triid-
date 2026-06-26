@@ -631,7 +631,158 @@ async function startServer() {
     }
   });
 
+
+  // ─── Messaging Routes ──────────────────────────────────────────────────────
+
+  // GET /api/v1/messages/conversations — list all conversations for current user
+  apiRouter.get("/messages/conversations", async (req, res) => {
+    try {
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      // Get all messages involving this user, grouped by job_id
+      const { data: messages, error } = await adminClient
+        .from("messages")
+        .select(`
+          id, job_id, content, created_at, is_read, sender_id, receiver_id,
+          sender:users!messages_sender_id_fkey(id, full_name),
+          receiver:users!messages_receiver_id_fkey(id, full_name),
+          job:jobs(id, category, description, status)
+        `)
+        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Messages query error:", error);
+        return res.status(500).json({ error: { message: error.message } });
+      }
+
+      // Group by job_id — keep only the latest message per job
+      const conversationMap = new Map<string, any>();
+      for (const msg of (messages || [])) {
+        if (!msg.job_id) continue;
+        if (!conversationMap.has(msg.job_id)) {
+          const partner = msg.sender_id === user.id ? msg.receiver : msg.sender;
+          conversationMap.set(msg.job_id, {
+            jobId: msg.job_id,
+            partnerId: msg.sender_id === user.id ? msg.receiver_id : msg.sender_id,
+            partnerName: partner?.full_name || "Unknown",
+            lastMessage: msg.content,
+            lastMessageAt: msg.created_at,
+            job: msg.job,
+            unreadCount: 0,
+          });
+        }
+        // Count unread from the other person
+        if (msg.receiver_id === user.id && !msg.is_read) {
+          const conv = conversationMap.get(msg.job_id);
+          if (conv) conv.unreadCount = (conv.unreadCount || 0) + 1;
+        }
+      }
+
+      const conversations = Array.from(conversationMap.values())
+        .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+
+      res.status(200).json({ conversations });
+    } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  // GET /api/v1/messages/:jobId — get all messages for a job thread
+  apiRouter.get("/messages/:jobId", async (req, res) => {
+    try {
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const { jobId } = req.params;
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      const { data: messages, error } = await adminClient
+        .from("messages")
+        .select(`
+          id, job_id, content, created_at, is_read, sender_id, receiver_id,
+          sender:users!messages_sender_id_fkey(id, full_name)
+        `)
+        .eq("job_id", jobId)
+        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+        .order("created_at", { ascending: true });
+
+      if (error) return res.status(500).json({ error: { message: error.message } });
+
+      // Mark messages sent TO this user as read
+      await adminClient
+        .from("messages")
+        .update({ is_read: true })
+        .eq("job_id", jobId)
+        .eq("receiver_id", user.id)
+        .eq("is_read", false);
+
+      // Fetch job details
+      const { data: job } = await adminClient
+        .from("jobs")
+        .select("id, category, description, status, resident_id, artisan_id")
+        .eq("id", jobId)
+        .single();
+
+      res.status(200).json({ messages: messages || [], job });
+    } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  // POST /api/v1/messages — send a message
+  apiRouter.post("/messages", async (req, res) => {
+    try {
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const { job_id, receiver_id, content } = req.body;
+      if (!job_id || !receiver_id || !content?.trim()) {
+        return res.status(400).json({ error: { message: "job_id, receiver_id, and content are required" } });
+      }
+
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      const { data: message, error } = await adminClient
+        .from("messages")
+        .insert({
+          job_id,
+          sender_id: user.id,
+          receiver_id,
+          content: content.trim(),
+          is_read: false,
+        })
+        .select(`
+          id, job_id, content, created_at, is_read, sender_id, receiver_id,
+          sender:users!messages_sender_id_fkey(id, full_name)
+        `)
+        .single();
+
+      if (error) return res.status(500).json({ error: { message: error.message } });
+
+      res.status(201).json({ message });
+    } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
   app.use('/api/v1', apiRouter);
+
 
   // Global API Error Handler to return JSON instead of HTML for middleware errors (like PayloadTooLarge)
   app.use('/api/v1', (err: any, req: any, res: any, next: any) => {
