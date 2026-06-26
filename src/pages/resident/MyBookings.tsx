@@ -78,8 +78,12 @@ export function MyBookings() {
           <div className="flex items-center gap-4">
             <button className="text-gray-500 hover:text-gray-700"><Bell className="w-5 h-5" /></button>
             <button className="text-gray-500 hover:text-gray-700"><HelpCircle className="w-5 h-5" /></button>
-            <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden">
-              <img src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="Profile" className="w-full h-full object-cover" />
+            <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden flex items-center justify-center">
+              {user?.user_metadata?.avatar_url ? (
+                <img src={user.user_metadata.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <UserIcon className="w-5 h-5 text-gray-400" />
+              )}
             </div>
           </div>
         </header>

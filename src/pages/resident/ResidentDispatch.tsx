@@ -12,6 +12,31 @@ export function ResidentDispatch() {
   const { user } = useAuth();
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!job || (job.status !== 'in-progress' && job.status !== 'en-route')) {
+      return;
+    }
+    const startTime = new Date(job.updated_at || job.created_at || Date.now()).getTime();
+    
+    const updateTimer = () => {
+      const now = Date.now();
+      const diff = Math.floor((now - startTime) / 1000);
+      setElapsed(diff > 0 ? diff : 0);
+    };
+    
+    updateTimer();
+    const timer = setInterval(updateTimer, 1000);
+    return () => clearInterval(timer);
+  }, [job?.status, job?.updated_at, job?.created_at]);
+
+  const formatTime = (totalSeconds: number) => {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   useEffect(() => {
     if (!id || !user) return;
@@ -82,7 +107,7 @@ export function ResidentDispatch() {
         </div>
         <div>
           <h2 className="text-xl font-bold text-gray-900">Artisan is en route</h2>
-          <p className="text-gray-500">Estimated arrival: 10 mins</p>
+          <p className="text-gray-500">Elapsed time: {formatTime(elapsed)}</p>
         </div>
       </div>
 
@@ -140,7 +165,7 @@ export function ResidentDispatch() {
         </div>
         <div className="bg-gray-50 border border-gray-200 rounded-xl px-6 py-4 text-center">
           <p className="text-xs text-gray-500 font-bold mb-1 uppercase tracking-wider">Elapsed Time</p>
-          <p className="text-2xl font-mono font-bold text-gray-900">00:24:18</p>
+          <p className="text-2xl font-mono font-bold text-gray-900">{formatTime(elapsed)}</p>
         </div>
       </div>
 
@@ -264,8 +289,12 @@ export function ResidentDispatch() {
         <div className="flex items-center gap-4">
           <button className="text-gray-500 hover:text-gray-700"><Bell className="w-5 h-5" /></button>
           <button className="text-gray-500 hover:text-gray-700"><HelpCircle className="w-5 h-5" /></button>
-          <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden">
-             <img src="https://i.pravatar.cc/150?u=a042581f4e29026704d" alt="Profile" className="w-full h-full object-cover" />
+          <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden flex items-center justify-center">
+            {user?.user_metadata?.avatar_url ? (
+              <img src={user.user_metadata.avatar_url} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <UserIcon className="w-5 h-5 text-gray-400" />
+            )}
           </div>
         </div>
       </header>

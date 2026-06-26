@@ -4,6 +4,24 @@ import path from "path";
 import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import webpush from "web-push";
+import * as admin from 'firebase-admin';
+
+// Initialize Firebase Admin (Only if env vars are provided)
+if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_PRIVATE_KEY) {
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        // Replace escaped newlines
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      }),
+    });
+    console.log("Firebase Admin initialized");
+  } catch (error) {
+    console.error("Firebase Admin initialization error", error);
+  }
+}
 
 // Configure Web Push
 webpush.setVapidDetails(
@@ -42,7 +60,7 @@ const JobCreateSchema = z.object({
 }, "Scheduled jobs require artisan_id and scheduled_for");
 
 const JobStatusUpdateSchema = z.object({
-  status: z.enum(['matched', 'in_progress', 'completed', 'cancelled'])
+  status: z.enum(['pending', 'matched', 'accepted', 'en_route', 'in_progress', 'completed', 'cancelled', 'offer_pending', 'pending_payment', 'offer_declined'])
 });
 
 // Helper to create a Supabase client with the user's JWT
@@ -322,6 +340,7 @@ async function startServer() {
         jobData.scheduled_for = scheduled_for;
         jobData.category = "other"; // Fallback, could fetch from artisan
         jobData.estimated_amount = 10000;
+        jobData.status = 'pending';
       } else {
         return res.status(400).json({ error: { message: "Unsupported job mode." } });
       }
@@ -396,6 +415,76 @@ async function startServer() {
       
       if (error) throw error;
       res.status(200).json({ message: "Job accepted" });
+    } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  apiRouter.post("/jobs/:id/accept-offer", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      const { data: job } = await adminClient.from('jobs').select('*').eq('id', id).single();
+      if (!job || job.status !== 'pending') {
+        return res.status(400).json({ error: { message: "Job is not in pending state." } });
+      }
+
+      if (job.artisan_id !== user.id) {
+        return res.status(403).json({ error: { message: "Only the assigned artisan can accept this offer." } });
+      }
+
+      const { error } = await adminClient.from('jobs').update({
+        status: 'matched',
+      }).eq('id', id);
+      
+      if (error) throw error;
+
+      await sendNotification(adminClient, job.resident_id, "Offer Accepted", `Your booking offer for job ${id.slice(0,8)} was accepted. You can now pay to escrow.`);
+
+      res.status(200).json({ message: "Offer accepted" });
+    } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  apiRouter.post("/jobs/:id/decline-offer", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      const { data: job } = await adminClient.from('jobs').select('*').eq('id', id).single();
+      if (!job || job.status !== 'pending') {
+        return res.status(400).json({ error: { message: "Job is not in pending state." } });
+      }
+
+      if (job.artisan_id !== user.id) {
+        return res.status(403).json({ error: { message: "Only the assigned artisan can decline this offer." } });
+      }
+
+      const { error } = await adminClient.from('jobs').update({
+        status: 'cancelled',
+      }).eq('id', id);
+      
+      if (error) throw error;
+
+      await sendNotification(adminClient, job.resident_id, "Offer Declined", `Your booking offer for job ${id.slice(0,8)} was declined.`);
+
+      res.status(200).json({ message: "Offer declined" });
     } catch (e: any) {
       res.status(500).json({ error: { message: e.message } });
     }
@@ -841,7 +930,7 @@ async function startServer() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
 
-      const { job_id, receiver_id, content } = req.body;
+      const { job_id, receiver_id, content, message_type } = req.body;
       if (!job_id || !receiver_id || !content?.trim()) {
         return res.status(400).json({ error: { message: "job_id, receiver_id, and content are required" } });
       }
@@ -859,9 +948,10 @@ async function startServer() {
           receiver_id,
           content: content.trim(),
           is_read: false,
+          message_type: message_type || 'text',
         })
         .select(`
-          id, job_id, content, created_at, is_read, sender_id, receiver_id,
+          id, job_id, content, created_at, is_read, sender_id, receiver_id, message_type,
           sender:users!messages_sender_id_fkey(id, full_name)
         `)
         .single();
@@ -1090,13 +1180,53 @@ async function startServer() {
     }
   });
 
+  apiRouter.post("/verify-phone", async (req, res) => {
+    try {
+      const { idToken } = req.body;
+      if (!idToken) return res.status(400).json({ error: { message: "idToken is required" } });
+
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      if (!admin.apps.length) {
+        return res.status(500).json({ error: { message: "Firebase Admin is not configured. Please add FIREBASE_PRIVATE_KEY to .env" } });
+      }
+
+      // Verify the Firebase ID token
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      const phoneNumber = decodedToken.phone_number;
+
+      if (!phoneNumber) {
+        return res.status(400).json({ error: { message: "Token does not contain a phone number" } });
+      }
+
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      // Update the user's supabase metadata
+      const { error } = await adminClient.auth.admin.updateUserById(user.id, {
+        user_metadata: { phone_verified: true, verified_phone: phoneNumber }
+      });
+
+      if (error) throw error;
+
+      res.status(200).json({ success: true, phoneNumber });
+    } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
   app.use('/api/v1', apiRouter);
 
 
   // Global API Error Handler to return JSON instead of HTML for middleware errors (like PayloadTooLarge)
   app.use('/api/v1', (err: any, req: any, res: any, next: any) => {
-    console.error('API Error:', err.message);
-    res.status(err.status || 500).json({ error: { message: err.message || 'Internal Server Error' } });
+    const errorCode = 'ERR-' + crypto.randomBytes(2).toString('hex').toUpperCase();
+    console.error(`[${errorCode}] API Error:`, err.message);
+    res.status(err.status || 500).json({ error: { message: err.message || 'Internal Server Error', code: errorCode } });
   });
 
   // Vite middleware for development

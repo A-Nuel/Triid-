@@ -6,6 +6,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { ToastProvider } from '@/contexts/ToastContext';
 import Landing from '@/pages/Landing';
 import { Splash } from '@/pages/Splash';
 import { AuthPage } from '@/pages/AuthPage';
@@ -71,7 +72,8 @@ export default function App() {
   return (
     <Router>
       <AuthProvider>
-        <Routes>
+        <ToastProvider>
+          <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/splash" element={<Splash />} />
           <Route path="/auth" element={<AuthPage />} />
@@ -206,6 +208,7 @@ export default function App() {
           {/* Artisan Full Screen / Active Job Flows */}
           <Route path="/artisan/emergency/:id" element={<ProtectedRoute role="artisan"><EmergencyTakeover /></ProtectedRoute>} />
         </Routes>
+        </ToastProvider>
       </AuthProvider>
     </Router>
   );

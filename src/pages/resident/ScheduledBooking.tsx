@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { ArrowLeft, Calendar, Clock, MapPin, Loader2, Info } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { useToast } from '@/contexts/ToastContext';
 
 export function ScheduledBooking() {
   const navigate = useNavigate();
   const { id } = useParams();
+  
+  const { error, success } = useToast();
   
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -40,13 +43,33 @@ export function ScheduledBooking() {
 
       const responseData = await response.json();
       if (response.ok) {
-        navigate(`/resident/emergency/payment/${responseData.data.id}`);
+        const jobId = responseData.data.id;
+        
+        // Send the offer message
+        await fetch('/api/v1/messages', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            job_id: jobId,
+            receiver_id: id, // this is the artisan user_id passed from ArtisanProfile
+            content: `Booking Offer:\n${description}\nScheduled for: ${date} at ${time}\nAmount: ₦10,000`,
+            message_type: 'offer'
+          })
+        });
+
+        // Navigate to messaging so they can chat and wait for acceptance
+        navigate(`/resident/messages`);
       } else {
-        alert("Failed to submit: " + (responseData.error?.message || "Unknown error"));
+        error(responseData.error?.message ? 
+          (responseData.error.code ? `Error ${responseData.error.code}: ${responseData.error.message}` : responseData.error.message) 
+          : "Failed to submit booking request.");
       }
     } catch (err) {
       console.error(err);
-      alert("Network connection failed. Please retry.");
+      error("Network connection failed. Please check your internet and retry.");
     } finally {
       setIsSubmitting(false);
     }
@@ -67,7 +90,7 @@ export function ScheduledBooking() {
         <div className="bg-[#f0f6fa] border-l-[3px] border-[#1b4f63] p-4 rounded-r-xl mb-8 flex gap-3 shadow-sm">
           <Info className="w-5 h-5 text-[#1b4f63] shrink-0 mt-0.5" />
           <p className="text-sm text-[#3c5a6b] font-medium leading-relaxed">
-            Your payment will be held securely in escrow. Funds are only released to the artisan once you confirm the job is completed.
+            Send a booking request to the artisan. Once they accept your offer, you can securely pay into escrow to confirm the job.
           </p>
         </div>
 
@@ -127,9 +150,9 @@ export function ScheduledBooking() {
               className="w-full bg-[#1b4f63] text-white py-4 rounded-xl font-bold text-lg hover:bg-[#123644] transition-all disabled:opacity-50 disabled:bg-gray-300 disabled:text-gray-500 shadow-md flex items-center justify-center gap-2 active:scale-[0.98]"
             >
               {isSubmitting ? (
-                <><Loader2 className="w-5 h-5 animate-spin" /> Processing...</>
+                <><Loader2 className="w-5 h-5 animate-spin" /> Sending Request...</>
               ) : (
-                 "Review & Pay to Escrow"
+                 "Send Booking Request"
               )}
             </button>
           </div>

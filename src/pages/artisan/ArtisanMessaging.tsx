@@ -23,6 +23,7 @@ interface Message {
   is_read: boolean;
   sender_id: string;
   receiver_id: string;
+  message_type?: string;
   sender?: { id: string; full_name: string; };
 }
 
@@ -103,6 +104,34 @@ export function ArtisanMessaging() {
       setUploadingMedia(false);
     }
     e.target.value = '';
+  };
+
+  const handleAcceptOffer = async (jobId: string) => {
+    try {
+      const res = await fetch(`/api/v1/jobs/${jobId}/accept-offer`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (res.ok) {
+        setJobDetail((prev: any) => ({ ...prev, status: 'matched' }));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeclineOffer = async (jobId: string) => {
+    try {
+      const res = await fetch(`/api/v1/jobs/${jobId}/decline-offer`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      if (res.ok) {
+        setJobDetail((prev: any) => ({ ...prev, status: 'cancelled' }));
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleSendVoiceNote = async () => {
@@ -443,7 +472,24 @@ export function ArtisanMessaging() {
                               ? 'bg-[#1b4f63] text-white rounded-br-sm'
                               : 'bg-white text-gray-800 border border-gray-100 shadow-sm rounded-bl-sm'
                           }`}>
-                            {msg.content.startsWith('[IMAGE]') ? (
+                            {msg.message_type === 'offer' ? (
+                              <div className="flex flex-col gap-2 min-w-[200px]">
+                                <div className="font-bold border-b border-gray-200 pb-1 mb-1">Booking Request Received</div>
+                                <div className="whitespace-pre-wrap text-sm">{msg.content.replace('Booking Offer:\n', '')}</div>
+                                {jobDetail?.status === 'pending' && (
+                                  <div className="flex gap-2 mt-3">
+                                    <button onClick={() => handleDeclineOffer(msg.job_id)} className="flex-1 bg-red-50 text-red-600 py-2 rounded-lg font-bold text-xs hover:bg-red-100 transition-colors border border-red-100">Decline</button>
+                                    <button onClick={() => handleAcceptOffer(msg.job_id)} className="flex-1 bg-[#1b4f63] text-white py-2 rounded-lg font-bold text-xs hover:bg-[#123644] transition-colors shadow-sm">Accept</button>
+                                  </div>
+                                )}
+                                {jobDetail?.status === 'matched' && (
+                                  <div className="mt-2 text-xs italic opacity-80 text-[#1b4f63]">Offer Accepted. Waiting for resident to pay...</div>
+                                )}
+                                {jobDetail?.status === 'cancelled' && (
+                                  <div className="mt-2 text-xs font-bold text-red-500">Offer Declined</div>
+                                )}
+                              </div>
+                            ) : msg.content.startsWith('[IMAGE]') ? (
                               <a href={msg.content.replace('[IMAGE] ', '')} target="_blank" rel="noreferrer">
                                 <img src={msg.content.replace('[IMAGE] ', '')} alt="Attachment" className="max-w-[200px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity" />
                               </a>

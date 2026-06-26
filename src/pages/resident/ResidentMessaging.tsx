@@ -24,6 +24,7 @@ interface Message {
   is_read: boolean;
   sender_id: string;
   receiver_id: string;
+  message_type?: string;
   sender?: { id: string; full_name: string; };
 }
 
@@ -505,7 +506,26 @@ export function ResidentMessaging() {
                                 ? 'bg-[#1b4f63] text-white rounded-br-sm'
                                 : 'bg-white text-gray-800 border border-gray-100 shadow-sm rounded-bl-sm'
                             }`}>
-                              {msg.content.startsWith('[IMAGE]') ? (
+                              {msg.message_type === 'offer' ? (
+                                <div className="flex flex-col gap-2 min-w-[200px]">
+                                  <div className="font-bold border-b border-white/20 pb-1 mb-1">Booking Request</div>
+                                  <div className="whitespace-pre-wrap text-sm opacity-90">{msg.content.replace('Booking Offer:\n', '')}</div>
+                                  {jobInfo?.status === 'pending' && (
+                                    <div className="mt-2 text-xs italic opacity-80">Waiting for artisan to accept...</div>
+                                  )}
+                                  {jobInfo?.status === 'matched' && (
+                                    <button 
+                                      onClick={() => navigate(`/resident/emergency/payment/${msg.job_id}`)}
+                                      className="mt-3 bg-white text-[#1b4f63] py-2 px-4 rounded-lg font-bold text-xs hover:bg-gray-100 transition-colors w-full shadow-sm"
+                                    >
+                                      Review & Pay to Escrow
+                                    </button>
+                                  )}
+                                  {jobInfo?.status === 'cancelled' && (
+                                    <div className="mt-2 text-xs font-bold text-red-200 bg-red-900/30 py-1 px-2 rounded">Offer Declined</div>
+                                  )}
+                                </div>
+                              ) : msg.content.startsWith('[IMAGE]') ? (
                                 <a href={msg.content.replace('[IMAGE] ', '')} target="_blank" rel="noreferrer">
                                   <img src={msg.content.replace('[IMAGE] ', '')} alt="Attachment" className="max-w-[200px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity" />
                                 </a>

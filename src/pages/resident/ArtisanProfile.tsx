@@ -23,6 +23,7 @@ export function ArtisanProfile() {
         .from('artisan_profiles')
         .select(`
           id,
+          user_id,
           bio,
           skill_categories,
           average_rating,
@@ -42,6 +43,7 @@ export function ArtisanProfile() {
       if (data) {
         setArtisan({
           id: data.id,
+          user_id: data.user_id,
           name: (data.users as any)?.full_name || 'Unknown Artisan',
           category: data.skill_categories?.[0] || 'general',
           skill_categories: data.skill_categories || [],
@@ -318,7 +320,7 @@ export function ArtisanProfile() {
             <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Base call-out fee</span>
           </div>
           <button 
-            onClick={() => navigate(`/resident/book/${artisan.id}`)}
+            onClick={() => navigate(`/resident/book/${artisan.user_id}`)}
             className="bg-[#1b4f63] text-white py-3 px-8 rounded-xl font-bold text-sm hover:bg-[#143b4f] transition-all shadow-md flex items-center gap-2 active:scale-95"
           >
             <Calendar className="w-4 h-4" /> Book {firstName}
