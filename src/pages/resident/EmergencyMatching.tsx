@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, Zap, CheckCircle2, MapPin, Star, ShieldCheck } from "lucide-react";
+import { HelpCircle, CheckCircle2, MapPin, Star, ShieldCheck, X, Radar } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { isDemoAccount } from "@/lib/demoUtils";
@@ -46,7 +46,6 @@ export function EmergencyMatching() {
         setJobStatus(data.status);
         if ((data.status === 'matched' || data.status === 'accepted') && data.users) {
           const u = data.users as any;
-          // artisan_profiles is returned as an object directly (or array depending on PostgREST 1:1 detection, we handle both)
           const profile = Array.isArray(u.artisan_profiles) ? u.artisan_profiles[0] : u.artisan_profiles;
           
           setArtisan({
@@ -76,7 +75,7 @@ export function EmergencyMatching() {
           const newStatus = payload.new.status;
           setJobStatus(newStatus);
           if (newStatus === 'matched' || newStatus === 'accepted') {
-            fetchJob(); // Fetch again to get joined artisan data
+            fetchJob();
           }
         }
       )
@@ -89,7 +88,6 @@ export function EmergencyMatching() {
 
   useEffect(() => {
     if (isChatting) {
-      // Simulate a chat conversation
       const timeouts: ReturnType<typeof setTimeout>[] = [];
       
       timeouts.push(setTimeout(() => {
@@ -120,78 +118,121 @@ export function EmergencyMatching() {
     navigate(`/resident/emergency/payment/${id}`);
   };
 
+  const handleCancel = async () => {
+    if (!id || !session) return;
+    try {
+      await fetch(`/api/v1/jobs/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ status: "cancelled" })
+      });
+      navigate('/resident/dashboard');
+    } catch (err) {
+      console.error("Failed to cancel job", err);
+      navigate('/resident/dashboard');
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col p-6 text-white text-center relative w-full">
-      
+    <div className="min-h-screen relative flex flex-col font-sans overflow-hidden bg-[#8ca8b0]">
+      {/* Background Map Grid Pattern */}
+      <div 
+        className="absolute inset-0 z-0 opacity-40"
+        style={{
+          backgroundImage: `
+            linear-gradient(to right, rgba(255,255,255,0.4) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255,255,255,0.4) 1px, transparent 1px)
+          `,
+          backgroundSize: '40px 40px'
+        }}
+      />
+      {/* Overlay gradient to focus center */}
+      <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,transparent_0%,#8ca8b0_80%)]" />
+
+      {/* Top Bar (Scanning) */}
       {jobStatus === 'pending' && (
-        <div className="absolute top-6 left-6">
-          <button 
-            onClick={() => navigate('/resident/dashboard')}
-            className="px-4 py-2 bg-gray-800 rounded-full text-sm font-medium hover:bg-gray-700 transition"
-          >
-            Cancel
+        <div className="absolute top-6 left-0 right-0 px-6 flex justify-between items-start z-20">
+          <div className="bg-white rounded-lg w-10 h-10 flex items-center justify-center font-bold text-[#001f29] shadow-md">
+            Tn.
+          </div>
+          <button className="bg-white rounded-full w-10 h-10 flex items-center justify-center text-[#001f29] shadow-md hover:bg-gray-50 transition-colors">
+            <HelpCircle className="w-5 h-5" />
           </button>
         </div>
       )}
 
-      <div className="flex-1 flex flex-col justify-center items-center">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col justify-center items-center z-10 p-6">
         {jobStatus === 'pending' && (
-          <div className="flex flex-col items-center max-w-sm">
-            <div className="relative mb-12 flex items-center justify-center">
-              {/* Radar Grid Circles */}
-              <div className="absolute w-64 h-64 border border-green-500/20 rounded-full"></div>
-              <div className="absolute w-48 h-48 border border-green-500/30 rounded-full"></div>
-              <div className="absolute w-32 h-32 border border-green-500/40 rounded-full"></div>
-              <div className="absolute w-16 h-16 border border-green-500/50 rounded-full bg-green-500/10"></div>
+          <>
+            {/* Center Target Icon */}
+            <div className="relative flex items-center justify-center mb-10">
+              {/* Outer pulsing rings */}
+              <div className="absolute w-[300px] h-[300px] border-2 border-white/20 rounded-full animate-[ping_3s_cubic-bezier(0,0,0.2,1)_infinite]"></div>
+              <div className="absolute w-[200px] h-[200px] border-2 border-white/30 rounded-full animate-[ping_3s_cubic-bezier(0,0,0.2,1)_infinite_1s]"></div>
               
-              {/* Radar Sweep Animation */}
-              <div className="absolute w-64 h-64 rounded-full overflow-hidden">
-                <div className="absolute top-1/2 left-1/2 w-32 h-32 origin-top-left bg-gradient-to-br from-green-400/40 to-transparent animate-[spin_2s_linear_infinite]"></div>
-              </div>
-              
-              <div className="relative z-10 bg-gray-900 rounded-full p-3 shadow-[0_0_15px_rgba(34,197,94,0.5)]">
-                <Zap className="w-8 h-8 text-green-400 animate-pulse" />
+              <div className="w-20 h-20 bg-[#2d5663] rounded-full flex items-center justify-center border-4 border-white shadow-xl z-10 relative">
+                <Radar className="w-8 h-8 text-white" />
               </div>
             </div>
-            <h2 className="text-2xl font-bold mb-3 text-green-400">Scanning for Artisans...</h2>
-            <p className="text-gray-400 text-lg">Locating the closest available professionals in your grid.</p>
-          </div>
+
+            {/* Bottom Sheet Card */}
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-md bg-white rounded-2xl p-6 shadow-2xl flex flex-col items-center text-center animate-in slide-in-from-bottom-10 duration-500">
+              <h2 className="text-[19px] font-bold text-[#001f29] mb-1">Scanning for nearby artisans...</h2>
+              <p className="text-gray-500 text-sm mb-5">Searching... This usually takes less than a minute.</p>
+              
+              <div className="bg-[#e0f2fe] text-[#0369a1] px-4 py-2 rounded-full flex items-center gap-2 font-bold text-xs mb-6 w-max">
+                <Radar className="w-3.5 h-3.5" />
+                Expanding search radius (5km)
+              </div>
+
+              <button 
+                onClick={handleCancel}
+                className="w-full py-3.5 border-2 border-gray-100 bg-white rounded-xl font-bold text-[#001f29] text-sm flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors"
+              >
+                <X className="w-4 h-4" /> Cancel search
+              </button>
+            </div>
+          </>
         )}
 
         {(jobStatus === 'matched' || jobStatus === 'accepted') && artisan && (
-          <div className="flex flex-col items-center max-w-sm w-full animate-in slide-in-from-bottom-8 duration-500">
-            <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-green-500/20">
+          <div className="flex flex-col items-center max-w-sm w-full animate-in slide-in-from-bottom-8 duration-500 bg-white p-8 rounded-3xl shadow-2xl">
+            <div className="w-20 h-20 bg-[#2d5663] rounded-full flex items-center justify-center mb-6 shadow-lg shadow-[#2d5663]/30">
               <CheckCircle2 className="w-10 h-10 text-white" />
             </div>
-            <h2 className="text-3xl font-bold mb-2">Match Found!</h2>
-            <p className="text-gray-300 mb-8">An artisan is ready to accept your request.</p>
+            <h2 className="text-3xl font-bold mb-2 text-[#001f29]">Match Found!</h2>
+            <p className="text-gray-500 mb-8 text-center">An artisan is ready to accept your request.</p>
 
-            <div className="bg-white text-gray-900 rounded-2xl p-6 w-full text-left shadow-xl mb-8">
+            <div className="bg-[#f8f9fa] border border-gray-100 rounded-2xl p-6 w-full text-left mb-8">
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center text-xl font-bold text-gray-600">
+                <div className="w-16 h-16 bg-[#2d5663] rounded-full flex items-center justify-center text-xl font-bold text-white shadow-inner">
                   {artisan.users?.full_name?.charAt(0) || "A"}
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <h3 className="font-bold text-xl truncate">{artisan.users?.full_name}</h3>
+                    <h3 className="font-bold text-xl text-[#001f29] truncate">{artisan.users?.full_name}</h3>
                     {artisan.verification_status === 'verified' && (
-                      <div className="flex-shrink-0 text-green-500">
+                      <div className="flex-shrink-0 text-green-600">
                         <ShieldCheck className="w-5 h-5" title="ID Verified" />
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 text-sm font-semibold text-gray-600 mt-1">
+                  <div className="flex items-center gap-1 text-sm font-semibold text-gray-500 mt-1">
                     <Star className="w-4 h-4 text-yellow-400 fill-current" />
                     {artisan.average_rating || "New"}
                     <span className="mx-2 text-gray-300">•</span>
-                    <MapPin className="w-4 h-4 text-blue-500" />
+                    <MapPin className="w-4 h-4 text-[#2d5663]" />
                     1.2 km away
                   </div>
                 </div>
               </div>
-              <div className="flex items-center justify-between border-t border-gray-100 pt-4 mt-2">
-                <span className="text-gray-500 font-medium">Estimated Cost</span>
-                <span className="text-xl font-black">₦{estimatedAmount?.toLocaleString()}</span>
+              <div className="flex items-center justify-between border-t border-gray-200 pt-4 mt-2">
+                <span className="text-gray-500 font-bold text-sm">Estimated Cost</span>
+                <span className="text-xl font-black text-[#001f29]">₦{estimatedAmount?.toLocaleString()}</span>
               </div>
             </div>
 
@@ -199,28 +240,28 @@ export function EmergencyMatching() {
               !isChatting ? (
                 <button
                   onClick={handleContactArtisan}
-                  className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-lg transition active:scale-[0.98] shadow-lg shadow-blue-600/20 mt-4"
+                  className="w-full py-4 bg-[#001f29] hover:bg-black text-white rounded-xl font-bold text-lg transition-colors shadow-lg mt-2"
                 >
                   Contact Artisan
                 </button>
               ) : (
-                <div className="w-full bg-gray-800 rounded-xl p-4 flex flex-col gap-3 shadow-xl mb-4">
-                  <div className="text-left text-sm text-gray-400 font-bold border-b border-gray-700 pb-2 mb-2">Live Chat</div>
+                <div className="w-full bg-[#f8f9fa] border border-gray-100 rounded-2xl p-5 flex flex-col gap-3 shadow-md mb-2">
+                  <div className="text-left text-sm text-gray-500 font-bold border-b border-gray-200 pb-2 mb-2">Live Chat</div>
                   {chatMessages.length === 0 && (
                     <div className="flex justify-center my-4">
                       <span className="flex gap-1">
-                        <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></span>
-                        <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-100"></span>
-                        <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-200"></span>
+                        <span className="w-2 h-2 bg-[#001f29] rounded-full animate-bounce"></span>
+                        <span className="w-2 h-2 bg-[#001f29] rounded-full animate-bounce delay-100"></span>
+                        <span className="w-2 h-2 bg-[#001f29] rounded-full animate-bounce delay-200"></span>
                       </span>
                     </div>
                   )}
                   {chatMessages.map((msg, idx) => (
                     <div key={idx} className={`flex ${msg.sender === 'resident' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${
+                      <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-sm ${
                         msg.sender === 'resident' 
-                          ? 'bg-blue-600 text-white rounded-tr-sm' 
-                          : 'bg-gray-700 text-white rounded-tl-sm'
+                          ? 'bg-[#001f29] text-white rounded-tr-sm' 
+                          : 'bg-white border border-gray-200 text-[#001f29] rounded-tl-sm'
                       }`}>
                         {msg.text}
                       </div>
@@ -229,7 +270,7 @@ export function EmergencyMatching() {
                   {showPaymentButton && (
                     <button
                       onClick={handleProceedToPayment}
-                      className="w-full py-3 mt-4 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold transition active:scale-[0.98] shadow-lg animate-in fade-in duration-300"
+                      className="w-full py-3.5 mt-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold transition-colors shadow-md animate-in fade-in duration-300"
                     >
                       Proceed to Payment
                     </button>
@@ -239,7 +280,7 @@ export function EmergencyMatching() {
             ) : (
               <button
                 onClick={handleProceedToPayment}
-                className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-lg transition active:scale-[0.98] shadow-lg shadow-blue-600/20 mt-4"
+                className="w-full py-4 bg-[#001f29] hover:bg-black text-white rounded-xl font-bold text-lg transition-colors shadow-lg mt-2"
               >
                 Proceed to Payment
               </button>

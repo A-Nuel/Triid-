@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import path from "path";
 import cors from "cors";
@@ -6,7 +7,18 @@ import { aiService } from "./src/server/modules/ai/ai.service";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { Redis } from "@upstash/redis";
+import multer from "multer";
+import { v2 as cloudinary } from "cloudinary";
 
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Configure Multer (memory storage)
+const upload = multer({ storage: multer.memoryStorage() });
 // Zod Schemas for Input Sanitization
 const JobCreateSchema = z.object({
   mode: z.enum(['emergency', 'scheduled']),
@@ -68,6 +80,29 @@ async function startServer() {
   // --- API Routes (Modular Monolith Setup) ---
   const apiRouter = express.Router();
   
+  // Cloudinary Media Upload Endpoint
+  apiRouter.post("/upload", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file provided" });
+      }
+
+      // Convert buffer to base64 for Cloudinary upload stream alternative
+      const b64 = Buffer.from(req.file.buffer).toString("base64");
+      const dataURI = "data:" + req.file.mimetype + ";base64," + b64;
+
+      const result = await cloudinary.uploader.upload(dataURI, {
+        resource_type: "auto", // Allows image, video, raw audio
+        folder: "triid_uploads",
+      });
+
+      res.status(200).json({ url: result.secure_url });
+    } catch (err: any) {
+      console.error("Cloudinary upload error:", err);
+      res.status(500).json({ error: "Failed to upload file to Cloudinary" });
+    }
+  });
+
   // Provide demo credentials and ensure they exist
   apiRouter.post("/auth/demo", async (req, res) => {
     try {
@@ -494,31 +529,39 @@ async function startServer() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
 
-      const { bio, skill_categories, starting_price_min, starting_price_max, portfolio_images, full_name } = req.body;
+      const { bio, skill_categories, starting_price_min, starting_price_max, portfolio_images, full_name, avatar_url } = req.body;
       
       const adminClient = createClient(
         process.env.VITE_SUPABASE_URL || "",
         process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
       );
 
-      // Update full_name in users if provided
-      if (full_name) {
-        await adminClient.auth.admin.updateUserById(user.id, { user_metadata: { full_name } });
+      // Update full_name and avatar_url in users if provided
+      const metadataUpdate: any = {};
+      if (full_name !== undefined) metadataUpdate.full_name = full_name;
+      if (avatar_url !== undefined) metadataUpdate.avatar_url = avatar_url;
+
+      if (Object.keys(metadataUpdate).length > 0) {
+        await adminClient.auth.admin.updateUserById(user.id, { user_metadata: metadataUpdate });
       }
 
-      const { data: profile } = await adminClient.from('artisan_profiles').select('id').eq('user_id', user.id).single();
-      if (!profile) return res.status(404).json({ error: { message: "Artisan profile not found." } });
+      // Ensure user exists in public.users to satisfy foreign key constraint
+      await adminClient.from("users").upsert({
+        id: user.id,
+        email: user.email,
+        full_name: full_name || user.user_metadata?.full_name || "Unknown",
+        role: "artisan"
+      }, { onConflict: "id" });
 
-      const updatePayload: any = {};
+      const updatePayload: any = { user_id: user.id };
       if (bio !== undefined) updatePayload.bio = bio;
       if (skill_categories !== undefined) updatePayload.skill_categories = skill_categories;
       if (starting_price_min !== undefined) updatePayload.starting_price_min = starting_price_min;
       if (starting_price_max !== undefined) updatePayload.starting_price_max = starting_price_max;
+      if (portfolio_images !== undefined) updatePayload.portfolio_images = portfolio_images;
       
       try {
-        if (portfolio_images !== undefined) updatePayload.portfolio_images = portfolio_images;
-        
-        const { error } = await adminClient.from('artisan_profiles').update(updatePayload).eq('id', profile.id);
+        const { error } = await adminClient.from('artisan_profiles').upsert(updatePayload, { onConflict: "user_id" });
         if (error) console.error("Error updating profile", error);
       } catch (e) {
         console.error(e);
@@ -776,6 +819,151 @@ async function startServer() {
       if (error) return res.status(500).json({ error: { message: error.message } });
 
       res.status(201).json({ message });
+    } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  // ─── Resident Profile & Settings Routes ──────────────────────────────────────
+  apiRouter.get("/resident/profile", async (req, res) => {
+    try {
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      const { data: profile } = await adminClient
+        .from("resident_profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      res.status(200).json({ profile: profile || {}, user });
+    } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  apiRouter.put("/resident/profile", async (req, res) => {
+    try {
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const { username, phone, estate_name, block_chalet, default_gate_instructions, full_name, avatar_url } = req.body;
+
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      // Update full_name and avatar_url in users metadata if provided
+      const metadataUpdate: any = {};
+      if (full_name !== undefined) metadataUpdate.full_name = full_name;
+      if (avatar_url !== undefined) metadataUpdate.avatar_url = avatar_url;
+
+      if (Object.keys(metadataUpdate).length > 0) {
+        await adminClient.auth.admin.updateUserById(user.id, { user_metadata: metadataUpdate });
+      }
+
+      // Ensure user exists in public.users to satisfy foreign key constraint
+      await adminClient.from("users").upsert({
+        id: user.id,
+        email: user.email,
+        full_name: full_name || user.user_metadata?.full_name || "Unknown",
+        role: "resident"
+      }, { onConflict: "id" });
+
+      const { data, error } = await adminClient
+        .from("resident_profiles")
+        .upsert({
+          user_id: user.id,
+          username,
+          phone,
+          estate_name,
+          block_chalet,
+          default_gate_instructions
+        }, { onConflict: "user_id" })
+        .select()
+        .single();
+
+      if (error) return res.status(500).json({ error: { message: error.message } });
+      res.status(200).json({ profile: data });
+    } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  // GET payment methods
+  apiRouter.get("/resident/payment-methods", async (req, res) => {
+    try {
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      const { data: methods } = await adminClient
+        .from("payment_methods")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      res.status(200).json({ payment_methods: methods || [] });
+    } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  // GET notifications
+  apiRouter.get("/notifications", async (req, res) => {
+    try {
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      const { data: notifications } = await adminClient
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      res.status(200).json({ notifications: notifications || [] });
+    } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  // PUT notifications/read (mark all as read)
+  apiRouter.put("/notifications/read", async (req, res) => {
+    try {
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      await adminClient
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("user_id", user.id);
+
+      res.status(200).json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: { message: e.message } });
     }

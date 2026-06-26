@@ -172,6 +172,7 @@ export function SettingsHub() {
           <h3 className="text-lg font-bold text-gray-900">Account Security</h3>
           <p className="text-gray-500 text-sm mt-2 flex-1">Update your password, manage two-factor authentication, and review login activity.</p>
           <button 
+            onClick={() => navigate('/artisan/settings/security')}
             className="mt-6 flex items-center gap-2 text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors"
           >
             Security Settings <ArrowRight className="w-4 h-4" />

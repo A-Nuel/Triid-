@@ -42,6 +42,15 @@ import { EmergencyLiveTracking } from '@/pages/resident/EmergencyLiveTracking';
 import { ConfirmCompletion } from '@/pages/resident/ConfirmCompletion';
 import { RateAndVouch } from '@/pages/resident/RateAndVouch';
 import { ResidentMessaging } from '@/pages/resident/ResidentMessaging';
+import { ResidentSettingsLayout } from '@/pages/resident/ResidentSettingsLayout';
+import { SettingsHub as ResidentSettingsHub } from '@/pages/resident/SettingsHub';
+import { SettingsProfile as ResidentSettingsProfile } from '@/pages/resident/SettingsProfile';
+import { SettingsAccess as ResidentSettingsAccess } from '@/pages/resident/SettingsAccess';
+import { SettingsPayments as ResidentSettingsPayments } from '@/pages/resident/SettingsPayments';
+import { SettingsSecurity as ResidentSettingsSecurity } from '@/pages/resident/SettingsSecurity';
+import { ResidentNotifications } from '@/pages/resident/Notifications';
+import { ArtisanNotifications } from '@/pages/artisan/Notifications';
+import { SettingsSecurity as ArtisanSettingsSecurity } from '@/pages/artisan/SettingsSecurity';
 
 // Protected Route Component
 function ProtectedRoute({ children, role }: { children: React.ReactNode, role?: 'resident' | 'artisan' }) {
@@ -154,14 +163,27 @@ export default function App() {
             <Route path="wallet" element={<Wallet />} />
             <Route path="reports" element={<ArtisanReports />} />
             <Route path="messages" element={<ArtisanMessaging />} />
+            <Route path="notifications" element={<ArtisanNotifications />} />
             <Route path="settings" element={<SettingsHub />} />
             <Route path="settings/profile" element={<SettingsProfile />} />
             <Route path="settings/verification" element={<SettingsVerification />} />
             <Route path="settings/availability" element={<SettingsAvailability />} />
+            <Route path="settings/security" element={<ArtisanSettingsSecurity />} />
           </Route>
 
           {/* Resident Messaging */}
           <Route path="/resident/messages" element={<ProtectedRoute><ResidentMessaging /></ProtectedRoute>} />
+
+          {/* Resident Settings */}
+          <Route path="/resident/settings" element={<ProtectedRoute><ResidentSettingsLayout /></ProtectedRoute>}>
+            <Route index element={<ResidentSettingsHub />} />
+            <Route path="profile" element={<ResidentSettingsProfile />} />
+            <Route path="access" element={<ResidentSettingsAccess />} />
+            <Route path="payments" element={<ResidentSettingsPayments />} />
+            <Route path="notifications" element={<ResidentNotifications />} />
+            <Route path="security" element={<ResidentSettingsSecurity />} />
+            <Route path="vouches" element={<div className="p-8 text-gray-500">Community vouches coming soon...</div>} />
+          </Route>
 
           {/* Artisan Full Screen / Active Job Flows */}
           <Route path="/artisan/emergency/:id" element={<ProtectedRoute role="artisan"><EmergencyTakeover /></ProtectedRoute>} />

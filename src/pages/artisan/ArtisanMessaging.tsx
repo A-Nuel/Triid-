@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Send, Phone, MoreVertical, Paperclip, ChevronRight, MessageSquare, Zap, CheckCheck, Check } from 'lucide-react';
+import { Search, Send, Phone, MoreVertical, Paperclip, ChevronRight, MessageSquare, Zap, CheckCheck, Check, Camera, Mic, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { uploadMedia } from '@/lib/mediaUpload';
+import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 
 interface Conversation {
   jobId: string;
@@ -85,6 +87,37 @@ export function ArtisanMessaging() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<any>(null);
 
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const { isRecording, recordingTime, startRecording, stopRecording, cancelRecording } = useVoiceRecorder();
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingMedia(true);
+    try {
+      const url = await uploadMedia(file);
+      await sendMessage(`[IMAGE] ${url}`);
+    } catch (err) {
+      alert("Failed to upload media");
+    } finally {
+      setUploadingMedia(false);
+    }
+    e.target.value = '';
+  };
+
+  const handleSendVoiceNote = async () => {
+    const blob = await stopRecording();
+    if (!blob) return;
+    setUploadingMedia(true);
+    try {
+      const url = await uploadMedia(blob);
+      await sendMessage(`[AUDIO] ${url}`);
+    } catch (err) {
+      alert("Failed to send voice note");
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
@@ -410,7 +443,15 @@ export function ArtisanMessaging() {
                               ? 'bg-[#1b4f63] text-white rounded-br-sm'
                               : 'bg-white text-gray-800 border border-gray-100 shadow-sm rounded-bl-sm'
                           }`}>
-                            {msg.content}
+                            {msg.content.startsWith('[IMAGE]') ? (
+                              <a href={msg.content.replace('[IMAGE] ', '')} target="_blank" rel="noreferrer">
+                                <img src={msg.content.replace('[IMAGE] ', '')} alt="Attachment" className="max-w-[200px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity" />
+                              </a>
+                            ) : msg.content.startsWith('[AUDIO]') ? (
+                              <audio controls src={msg.content.replace('[AUDIO] ', '')} className="h-10 w-[200px]" />
+                            ) : (
+                              msg.content
+                            )}
                           </div>
                           <div className="flex items-center gap-1 mt-1">
                             <span className="text-[10px] text-gray-400">{formatTime(msg.created_at)}</span>
@@ -445,24 +486,61 @@ export function ArtisanMessaging() {
 
           {/* Input Bar */}
           <div className="bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3">
-            <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
+            <label className="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 cursor-pointer relative">
               <Paperclip className="w-5 h-5" />
-            </button>
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
-              placeholder="Type a message..."
-              className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1b4f63]/30 focus:border-[#1b4f63] resize-none"
-            />
-            <button
-              onClick={() => sendMessage(input)}
-              disabled={!input.trim() || sending}
-              className="w-10 h-10 rounded-xl bg-[#1b4f63] text-white flex items-center justify-center hover:bg-[#003849] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex-shrink-0 shadow-sm"
-            >
-              <Send className="w-4 h-4" />
-            </button>
+              <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploadingMedia || isRecording} />
+            </label>
+            <label className="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 cursor-pointer relative">
+              <Camera className="w-5 h-5" />
+              <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} disabled={uploadingMedia || isRecording} />
+            </label>
+            
+            {isRecording ? (
+              <div className="flex-1 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm flex items-center justify-between">
+                <div className="flex items-center gap-2 text-red-600 font-medium animate-pulse">
+                  <Mic className="w-4 h-4" /> Recording ({recordingTime}s)
+                </div>
+                <button onClick={cancelRecording} className="p-1 hover:bg-red-100 rounded-full text-red-600">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <input
+                type="text"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } }}
+                placeholder={uploadingMedia ? "Uploading..." : "Type a message..."}
+                disabled={uploadingMedia}
+                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1b4f63]/30 focus:border-[#1b4f63] resize-none disabled:bg-gray-100"
+              />
+            )}
+
+            {isRecording ? (
+              <button
+                onClick={handleSendVoiceNote}
+                disabled={uploadingMedia}
+                className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center hover:bg-red-700 transition-all flex-shrink-0 shadow-sm"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            ) : input.trim() ? (
+              <button
+                onClick={() => sendMessage(input)}
+                disabled={sending || uploadingMedia}
+                className="w-10 h-10 rounded-xl bg-[#1b4f63] text-white flex items-center justify-center hover:bg-[#003849] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex-shrink-0 shadow-sm"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={startRecording}
+                disabled={uploadingMedia}
+                className="w-10 h-10 rounded-xl bg-gray-200 text-gray-600 flex items-center justify-center hover:bg-gray-300 transition-all flex-shrink-0 shadow-sm"
+              >
+                <Mic className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       ) : (

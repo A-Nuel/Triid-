@@ -21,13 +21,17 @@ export function SettingsProfile() {
   const [maxPrice, setMaxPrice] = useState("");
   const [bio, setBio] = useState("");
   const [fullName, setFullName] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
   const [portfolio, setPortfolio] = useState<string[]>([]);
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -38,6 +42,7 @@ export function SettingsProfile() {
           try {
             const c = JSON.parse(cached);
             setFullName(c.fullName || "");
+            setPhotoUrl(c.photoUrl || "");
             setBio(c.bio || "");
             setSkills(c.skills || []);
             setMinPrice(c.minPrice || "");
@@ -56,6 +61,7 @@ export function SettingsProfile() {
         if (res.ok) {
           const { profile, user: u } = await res.json();
           const fn = u?.user_metadata?.full_name || "";
+          const pu = u?.user_metadata?.avatar_url || "";
           const b = profile?.bio || "";
           const sk = profile?.skill_categories || [];
           const mn = profile?.starting_price_min?.toString() || "";
@@ -63,6 +69,7 @@ export function SettingsProfile() {
           const pf = profile?.portfolio_images || [];
 
           setFullName(fn);
+          setPhotoUrl(pu);
           setBio(b);
           setSkills(sk);
           setMinPrice(mn);
@@ -72,7 +79,7 @@ export function SettingsProfile() {
           // Save to cache
           if (user) {
             localStorage.setItem(CACHE_KEY(user.id), JSON.stringify({
-              fullName: fn, bio: b, skills: sk,
+              fullName: fn, photoUrl: pu, bio: b, skills: sk,
               minPrice: mn, maxPrice: mx, portfolio: pf
             }));
           }
@@ -105,18 +112,20 @@ export function SettingsProfile() {
     setError(null);
 
     try {
-      const ext = file.name.split(".").pop();
-      const filePath = `portfolio/${user.id}/${Date.now()}.${ext}`;
+      const formData = new FormData();
+      formData.append("file", file);
 
-      const { error: uploadError } = await supabase.storage
-        .from("artisan-portfolio")
-        .upload(filePath, file, { upsert: true, contentType: file.type });
+      const res = await fetch("/api/v1/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-      if (uploadError) throw uploadError;
+      if (!res.ok) {
+        throw new Error("Upload failed. Server responded with " + res.status);
+      }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("artisan-portfolio")
-        .getPublicUrl(filePath);
+      const data = await res.json();
+      const publicUrl = data.url;
 
       const updated = [...portfolio];
       if (replaceIdx !== undefined) {
@@ -127,7 +136,7 @@ export function SettingsProfile() {
       setPortfolio(updated);
     } catch (err: any) {
       console.error("Upload error", err);
-      setError(err.message || "Failed to upload image. Check Supabase Storage bucket.");
+      setError(err.message || "Failed to upload image. Please try again later.");
     } finally {
       setUploadingIdx(null);
     }
@@ -140,8 +149,30 @@ export function SettingsProfile() {
     e.target.value = "";
   };
 
-  const removePortfolioImage = (idx: number) => {
-    setPortfolio(portfolio.filter((_, i) => i !== idx));
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingAvatar(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/v1/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Failed to upload avatar");
+      const data = await res.json();
+      setPhotoUrl(data.url);
+    } catch (err: any) {
+      setError(err.message || "Failed to upload avatar.");
+    } finally {
+      setUploadingAvatar(false);
+      if (e.target) e.target.value = "";
+    }
   };
 
   const handleSave = async () => {
@@ -151,6 +182,7 @@ export function SettingsProfile() {
 
     const payload = {
       full_name: fullName,
+      avatar_url: photoUrl,
       bio,
       skill_categories: skills,
       starting_price_min: Number(minPrice) || 0,
@@ -161,7 +193,7 @@ export function SettingsProfile() {
     // Optimistic cache update immediately
     if (user) {
       localStorage.setItem(CACHE_KEY(user.id), JSON.stringify({
-        fullName, bio, skills, minPrice, maxPrice, portfolio
+        fullName, photoUrl, bio, skills, minPrice, maxPrice, portfolio
       }));
     }
 
@@ -222,30 +254,62 @@ export function SettingsProfile() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-8 space-y-8">
-
-        {/* Professional Identity */}
-        <div>
-          <h3 className="text-lg font-bold text-gray-900 mb-4">Professional Identity</h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Display Name</label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={e => setFullName(e.target.value)}
-                placeholder="e.g. Emeka Okafor"
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#1b4f63] focus:border-[#1b4f63] outline-none transition-all"
-              />
-            </div>
-            <div>
-              <div className="flex justify-between items-baseline mb-1">
-                <label className="block text-sm font-bold text-gray-700">Bio</label>
-                <span className="text-xs text-gray-400">{bio.length}/300</span>
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        {/* Avatar Upload Card */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-8 flex flex-col items-center text-center w-full lg:w-72 flex-shrink-0 shadow-sm">
+          <div className="w-32 h-32 rounded-full bg-[#f0f4f8] flex items-center justify-center text-gray-400 mb-6 border-4 border-white shadow-md overflow-hidden relative">
+            {uploadingAvatar ? (
+              <Loader2 className="w-8 h-8 animate-spin text-[#1b4f63]" />
+            ) : photoUrl ? (
+              <img src={photoUrl} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <div className="text-3xl font-bold text-[#1b4f63] uppercase">
+                {fullName?.charAt(0) || user?.email?.charAt(0) || 'A'}
               </div>
-              <textarea
-                rows={4}
-                value={bio}
+            )}
+          </div>
+          <input
+            type="file"
+            accept="image/*"
+            ref={avatarInputRef}
+            onChange={handleAvatarUpload}
+            className="hidden"
+          />
+          <button 
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={uploadingAvatar}
+            className="bg-[#eef2f6] hover:bg-[#e1eaef] text-[#1b4f63] font-bold py-2 px-6 rounded-lg text-sm transition-colors mb-3 flex items-center gap-2"
+          >
+            {uploadingAvatar ? "Uploading..." : <><Upload className="w-4 h-4" /> Change Photo</>}
+          </button>
+          <p className="text-xs text-gray-400 font-medium">JPG, GIF or PNG. Max size of 800K</p>
+        </div>
+
+        {/* Form Card */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-8 space-y-8 flex-1">
+
+          {/* Professional Identity */}
+          <div>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Professional Identity</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Display Name</label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={e => setFullName(e.target.value)}
+                  placeholder="e.g. Emeka Okafor"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#1b4f63] focus:border-[#1b4f63] outline-none transition-all"
+                />
+              </div>
+              <div>
+                <div className="flex justify-between items-baseline mb-1">
+                  <label className="block text-sm font-bold text-gray-700">Bio</label>
+                  <span className="text-xs text-gray-400">{bio.length}/300</span>
+                </div>
+                <textarea
+                  rows={4}
+                  value={bio}
                 maxLength={300}
                 onChange={e => setBio(e.target.value)}
                 placeholder="Briefly describe your expertise and experience..."
@@ -384,6 +448,7 @@ export function SettingsProfile() {
             ))}
           </div>
         </div>
+      </div>
       </div>
 
       {/* Floating Save Bar */}

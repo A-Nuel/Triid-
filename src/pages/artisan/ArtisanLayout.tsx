@@ -19,6 +19,7 @@ export function ArtisanLayout() {
     { label: 'Messaging', path: '/artisan/messages', icon: <MessageSquare className="w-5 h-5" /> },
     { label: 'Wallet', path: '/artisan/wallet', icon: <Wallet className="w-5 h-5" /> },
     { label: 'Analytics', path: '/artisan/reports', icon: <BarChart2 className="w-5 h-5" /> },
+    { label: 'Notifications', path: '/artisan/notifications', icon: <Bell className="w-5 h-5" /> },
     { label: 'Settings', path: '/artisan/settings', icon: <Settings className="w-5 h-5" /> },
   ];
 
@@ -85,7 +86,7 @@ export function ArtisanLayout() {
           <div className="hidden md:block" />{/* Spacer */}
           
           <div className="flex items-center gap-space-4">
-            <button className="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-variant/50 transition-colors relative">
+            <button onClick={() => navigate('/artisan/notifications')} className="w-10 h-10 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-variant/50 transition-colors relative">
               <Bell className="w-5 h-5" />
             </button>
             <button 

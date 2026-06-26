@@ -137,7 +137,7 @@ export function ResidentDashboard() {
         </nav>
 
         <div className="mt-auto flex flex-col gap-1 pt-4 border-t border-white/10">
-          <button className="flex items-center gap-3 px-3 py-2 text-[#4d6879] hover:bg-white/5 rounded-lg transition-all w-full text-left">
+          <button onClick={() => navigate('/resident/settings')} className="flex items-center gap-3 px-3 py-2 text-[#4d6879] hover:bg-white/5 rounded-lg transition-all w-full text-left">
             <Settings className="w-5 h-5" />
             <span className="text-sm font-medium">Settings</span>
           </button>
