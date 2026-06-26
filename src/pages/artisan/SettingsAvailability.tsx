@@ -1,13 +1,17 @@
-import { AlertOctagon, Calendar as CalendarIcon, Info, Loader2 } from "lucide-react";
+import { AlertOctagon, Calendar as CalendarIcon, Info, Loader2, CheckCircle2, ArrowLeft } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { offlineGet, offlinePost } from "@/lib/offlineApi";
 
 export function SettingsAvailability() {
   const { session } = useAuth();
+  const navigate = useNavigate();
   const [emergencyEnabled, setEmergencyEnabled] = useState(true);
   const [standardEnabled, setStandardEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   // Simple state for grid toggle (Mon-Sun, AM/PM)
   const [availability, setAvailability] = useState<{ [key: string]: boolean }>({
@@ -22,52 +26,34 @@ export function SettingsAvailability() {
 
   useEffect(() => {
     const fetchSettings = async () => {
-      try {
-        const res = await fetch("/api/v1/artisan/settings", {
-          headers: { Authorization: `Bearer ${session?.access_token}` }
-        });
-        if (res.ok) {
-          const { profile } = await res.json();
-          if (profile.accepts_emergency !== undefined) setEmergencyEnabled(profile.accepts_emergency);
-          if (profile.accepts_standard !== undefined) setStandardEnabled(profile.accepts_standard);
-          if (profile.availability_schedule) setAvailability(profile.availability_schedule);
-        }
-      } catch (err) {
-        console.error("Failed to fetch settings", err);
-      } finally {
-        setLoading(false);
+      if (!session) return;
+      const data = await offlineGet<{ profile: any }>(
+        "/api/v1/artisan/settings",
+        session.access_token
+      );
+      if (data?.profile) {
+        if (data.profile.accepts_emergency !== undefined) setEmergencyEnabled(data.profile.accepts_emergency);
+        if (data.profile.accepts_standard !== undefined) setStandardEnabled(data.profile.accepts_standard);
+        if (data.profile.availability_schedule) setAvailability(data.profile.availability_schedule);
       }
+      setLoading(false);
     };
-    if (session) fetchSettings();
+    fetchSettings();
   }, [session]);
 
   const handleSave = async () => {
     setSaving(true);
-    try {
-      const res = await fetch("/api/v1/artisan/availability", {
-        method: "PUT",
-        headers: { 
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.access_token}` 
-        },
-        body: JSON.stringify({
-          accepts_emergency: emergencyEnabled,
-          accepts_standard: standardEnabled,
-          availability_schedule: availability
-        })
-      });
-      if (res.ok) {
-        alert("Availability saved successfully");
-      } else {
-        const error = await res.json();
-        alert(error.error?.message || "Failed to save availability");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Error saving availability");
-    } finally {
-      setSaving(false);
-    }
+    setSaved(false);
+    const { offline } = await offlinePost(
+      "/api/v1/artisan/availability",
+      "PUT",
+      { accepts_emergency: emergencyEnabled, accepts_standard: standardEnabled, availability_schedule: availability },
+      session?.access_token || ""
+    );
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+    if (offline) console.log('Saved offline — will sync when back online');
   };
 
   const toggleSlot = (day: string, time: string) => {
@@ -224,15 +210,21 @@ export function SettingsAvailability() {
       
       {/* Floating Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 md:left-64 bg-white border-t border-gray-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
-        <div className="max-w-4xl mx-auto flex justify-end gap-3">
-          <button 
-            disabled={saving}
-            onClick={handleSave}
-            className="px-6 py-2.5 bg-[#001f29] hover:bg-black text-white font-bold rounded-lg transition-colors flex items-center gap-2"
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            {saving ? "Saving..." : "Save Changes"}
-          </button>
+        <div className="max-w-4xl mx-auto flex justify-between items-center gap-3">
+          <span className="text-xs text-gray-400">Changes sync when back online if offline.</span>
+          <div className="flex gap-3">
+            <button onClick={() => navigate('/artisan/settings')} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50 transition-colors text-sm">Cancel</button>
+            <button
+              disabled={saving}
+              onClick={handleSave}
+              className={`px-6 py-2.5 font-bold rounded-lg transition-all flex items-center gap-2 text-sm ${
+                saved ? 'bg-green-600 text-white' : 'bg-[#001f29] hover:bg-black text-white'
+              }`}
+            >
+              {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> :
+               saved ? <><CheckCircle2 className="w-4 h-4" /> Saved!</> : 'Save Changes'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

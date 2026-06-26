@@ -12,20 +12,32 @@ export function SettingsHub() {
   useEffect(() => {
     async function loadProfile() {
       if (!user) return;
-      const { data } = await supabase
-        .from("users")
-        .select(`
-          full_name,
-          artisan_profiles (
-            category,
-            average_rating,
-            total_reviews,
-            verification_status
-          )
-        `)
-        .eq("id", user.id)
-        .single();
-      if (data) setProfile(data);
+      // Check cache first (offline-first)
+      const cached = localStorage.getItem(`triid_settings_hub_${user.id}`);
+      if (cached) {
+        try { setProfile(JSON.parse(cached)); } catch {}
+      }
+      try {
+        const { data } = await supabase
+          .from("users")
+          .select(`
+            full_name,
+            artisan_profiles (
+              skill_categories,
+              average_rating,
+              total_reviews,
+              verification_status
+            )
+          `)
+          .eq("id", user.id)
+          .single();
+        if (data) {
+          setProfile(data);
+          localStorage.setItem(`triid_settings_hub_${user.id}`, JSON.stringify(data));
+        }
+      } catch (err) {
+        console.warn('Network error, using cached data', err);
+      }
     }
     loadProfile();
   }, [user]);
@@ -55,7 +67,7 @@ export function SettingsHub() {
           <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
             <h2 className="text-xl font-bold text-gray-900">{profile?.full_name || "Loading..."}</h2>
             <span className="px-3 py-0.5 bg-[#1b4f63] text-white text-xs font-semibold rounded-full w-max mx-auto md:mx-0">
-              {profile?.artisan_profiles?.category || "Artisan"}
+              {profile?.artisan_profiles?.skill_categories?.[0] || "Artisan"}
             </span>
           </div>
           <p className="text-gray-500 text-sm mt-1">
