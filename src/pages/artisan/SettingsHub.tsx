@@ -25,7 +25,7 @@ export function SettingsHub() {
             artisan_profiles (
               skill_categories,
               average_rating,
-              total_reviews,
+              total_jobs_completed,
               verification_status
             )
           `)
@@ -90,7 +90,7 @@ export function SettingsHub() {
               <div className="text-lg font-bold text-gray-900 flex items-center gap-1">
                 {profile?.artisan_profiles?.average_rating || "New"}
               </div>
-              <div className="text-xs text-gray-500">Rating ({profile?.artisan_profiles?.total_reviews || 0}+)</div>
+              <div className="text-xs text-gray-500">Rating ({profile?.artisan_profiles?.total_jobs_completed || 0}+)</div>
             </div>
             <div className="w-px h-8 bg-gray-200"></div>
             <div>

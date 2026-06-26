@@ -9,13 +9,30 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
+function getElapsedTime(startStr: string, now: Date) {
+  if (!startStr) return '00:00:00';
+  const start = new Date(startStr);
+  const diffMs = Math.max(0, now.getTime() - start.getTime());
+  const h = Math.floor(diffMs / 3600000).toString().padStart(2, '0');
+  const m = Math.floor((diffMs % 3600000) / 60000).toString().padStart(2, '0');
+  const s = Math.floor((diffMs % 60000) / 1000).toString().padStart(2, '0');
+  return `${h}:${m}:${s}`;
+}
+
 export function ResidentDashboard() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<any[]>([]);
   const [trustedArtisans, setTrustedArtisans] = useState<any[]>([]);
+  const [userName, setUserName] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     async function fetchData() {
@@ -40,9 +57,9 @@ export function ResidentDashboard() {
             id,
             full_name,
             artisan_profiles (
-              category,
+              skill_categories,
               average_rating,
-              total_reviews,
+              total_jobs_completed,
               verification_status
             )
           `)
@@ -51,6 +68,17 @@ export function ResidentDashboard() {
         
         if (!artisansErr && artisansData) {
           setTrustedArtisans(artisansData);
+        }
+
+        // Fetch user's name from database if user_metadata is incomplete
+        const { data: userData } = await supabase
+          .from('users')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+        
+        if (userData?.full_name) {
+          setUserName(userData.full_name.split(' ')[0]);
         }
 
       } catch (err) {
@@ -65,6 +93,13 @@ export function ResidentDashboard() {
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
+  };
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
   };
 
   const activeJobs = jobs.filter(j => j.status === 'pending' || j.status === 'matched' || j.status === 'en-route' || j.status === 'in-progress');
@@ -122,7 +157,7 @@ export function ResidentDashboard() {
             <Store className="w-5 h-5" />
             <span className="text-sm font-medium">Service Marketplace</span>
           </button>
-          <button className="flex items-center gap-3 px-3 py-2 text-[#4d6879] hover:bg-white/5 rounded-lg transition-all w-full text-left">
+          <button onClick={() => navigate('/resident/bookings')} className="flex items-center gap-3 px-3 py-2 text-[#4d6879] hover:bg-white/5 rounded-lg transition-all w-full text-left">
             <Zap className="w-5 h-5" />
             <span className="text-sm font-medium">Active Dispatches</span>
           </button>
@@ -159,7 +194,7 @@ export function ResidentDashboard() {
         <header className="bg-primary text-white sticky top-0 md:z-30 px-6 py-6 shadow-md border-b border-[#003849]">
           <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Good evening, {user?.user_metadata?.full_name?.split(' ')[0] || 'Resident'}</h2>
+              <h2 className="text-2xl md:text-3xl font-bold tracking-tight">{getGreeting()}, {userName || user?.user_metadata?.full_name?.split(' ')[0] || 'Resident'}</h2>
               <p className="text-white/80 mt-1 flex items-center gap-1 text-sm">
                 <MapPin className="w-4 h-4" />
                 Redemption City - Grace Estate
@@ -202,7 +237,7 @@ export function ResidentDashboard() {
               ) : activeJobs.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {activeJobs.map(job => (
-                    <div key={job.id} className={`bg-white rounded-xl p-4 shadow-sm border-l-4 ${job.status === 'in-progress' ? 'border-warning' : 'border-success'} flex flex-col gap-3 group hover:shadow-md transition-shadow relative overflow-hidden`}>
+                    <div key={job.id} onClick={() => navigate(`/resident/dispatch/${job.id}`)} className={`bg-white rounded-xl p-4 shadow-sm border-l-4 ${job.status === 'in-progress' ? 'border-warning' : 'border-success'} flex flex-col gap-3 group hover:shadow-md transition-shadow relative overflow-hidden cursor-pointer`}>
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="flex items-center gap-2 mb-1">
@@ -232,7 +267,7 @@ export function ResidentDashboard() {
                         <div className="text-right">
                           <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">{job.status === 'in-progress' ? 'Elapsed Time' : 'ETA'}</p>
                           <p className={`text-sm font-semibold ${job.status === 'in-progress' ? 'font-mono' : ''} text-on-surface`}>
-                            {job.status === 'in-progress' ? '01:45:22' : '15 mins'}
+                            {job.status === 'in-progress' ? getElapsedTime(job.created_at, now) : '15 mins'}
                           </p>
                         </div>
                       </div>
@@ -308,18 +343,21 @@ export function ResidentDashboard() {
                           </div>
                           <div>
                             <h4 className="font-semibold text-sm text-on-surface">{artisan.full_name}</h4>
-                            <p className="text-xs text-on-surface-variant capitalize">{artisan.artisan_profiles?.category || 'General'}</p>
+                            <p className="text-xs text-on-surface-variant capitalize">{artisan.artisan_profiles?.skill_categories?.[0] || 'General'}</p>
                             <div className="flex items-center gap-1 mt-1 text-warning">
                               <Star className="w-3 h-3 fill-current" />
                               <span className="text-xs font-semibold text-on-surface">{artisan.artisan_profiles?.average_rating || 'New'}</span>
-                              <span className="text-[10px] text-on-surface-variant">({artisan.artisan_profiles?.total_reviews || 0})</span>
+                              <span className="text-[10px] text-on-surface-variant">({artisan.artisan_profiles?.total_jobs_completed || 0})</span>
                             </div>
                           </div>
                         </div>
                         <p className="text-xs text-on-surface-variant line-clamp-2 mt-2 flex-1">
                           Available for services in your area. Contact for a quote.
                         </p>
-                        <button className="mt-2 w-full bg-[#1b4f63] text-white font-semibold text-sm py-2 rounded-lg hover:bg-[#003849] transition-colors">
+                        <button 
+                          onClick={() => navigate('/resident/messages', { state: { prefillMessage: `Hi, I would like to request a quote for your services.`, artisanId: artisan.id, artisanName: artisan.full_name } })}
+                          className="mt-2 w-full bg-[#1b4f63] text-white font-semibold text-sm py-2 rounded-lg hover:bg-[#003849] transition-colors"
+                        >
                           Request Quote
                         </button>
                       </div>

@@ -45,14 +45,14 @@ export function ArtisanProfile() {
           name: (data.users as any)?.full_name || 'Unknown Artisan',
           category: data.skill_categories?.[0] || 'general',
           skill_categories: data.skill_categories || [],
-          distance: '1.2km', // Mock
-          rating: data.average_rating || 4.8,
+          distance: 'Location based', // We don't have lat/long yet
+          rating: data.average_rating || 0,
           jobs: data.total_jobs_completed || 0,
-          priceMin: data.starting_price_min ? `₦${data.starting_price_min.toLocaleString()}` : '5,000',
-          priceMax: data.starting_price_max ? `₦${data.starting_price_max.toLocaleString()}` : '20,000',
-          trustTier: data.trust_tier || 'trusted',
-          verificationStatus: data.verification_status || 'verified',
-          bio: data.bio || 'Over 8 years of experience in residential and commercial electrical systems across Lagos. Specializing in rapid fault isolation and safe, compliant wiring.',
+          priceMin: data.starting_price_min ? `₦${data.starting_price_min.toLocaleString()}` : 'Contact for Quote',
+          priceMax: data.starting_price_max ? `₦${data.starting_price_max.toLocaleString()}` : '',
+          trustTier: data.trust_tier || 'standard',
+          verificationStatus: data.verification_status || 'pending',
+          bio: data.bio || 'No bio provided by artisan.',
           portfolioImages: data.portfolio_images || []
         });
       }
@@ -73,23 +73,7 @@ export function ArtisanProfile() {
           text: r.comment || ''
         })));
       } else {
-        // Fallback reviews to match the high-fidelity design
-        setReviews([
-          {
-            id: 'r1',
-            author: 'Amina D.',
-            date: '2 days ago • Ikeja',
-            rating: 5,
-            text: 'Emeka arrived within 20 minutes when my entire house lost power. He found the burnt fuse quickly and fixed it safely. Very professional.'
-          },
-          {
-            id: 'r2',
-            author: 'Tunde O.',
-            date: '1 week ago • Lekki',
-            rating: 5,
-            text: 'Did a full rewiring for my new apartment. Neat job, no exposed wires. Highly recommended for heavy installations.'
-          }
-        ]);
+        setReviews([]);
       }
 
       setLoading(false);

@@ -3,6 +3,14 @@ import express from "express";
 import path from "path";
 import cors from "cors";
 import { createServer as createViteServer } from "vite";
+import webpush from "web-push";
+
+// Configure Web Push
+webpush.setVapidDetails(
+  "mailto:support@triid.app",
+  process.env.VITE_VAPID_PUBLIC_KEY || "",
+  process.env.VAPID_PRIVATE_KEY || ""
+);
 import { aiService } from "./src/server/modules/ai/ai.service";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
@@ -62,6 +70,33 @@ const redis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_RE
     })
   : null;
 
+
+async function sendNotification(adminClient: any, userId: string, title: string, message: string) {
+  try {
+    await adminClient.from('notifications').insert({
+      user_id: userId,
+      type: 'push',
+      content: `${title}: ${message}`
+    });
+
+    const { data: subs } = await adminClient.from('push_subscriptions').select('*').eq('user_id', userId);
+    if (subs && subs.length > 0) {
+      for (const sub of subs) {
+        try {
+          await webpush.sendNotification({
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.p256dh, auth: sub.auth }
+          }, JSON.stringify({ title, body: message }));
+        } catch (e) {
+          console.error('Push error:', e);
+          await adminClient.from('push_subscriptions').delete().eq('id', sub.id);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Notification error:', err);
+  }
+}
 
 async function startServer() {
   const app = express();
@@ -177,7 +212,7 @@ async function startServer() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
 
-      let query = supabase.from('jobs').select('*, resident:resident_id(full_name, phone)');
+      let query = supabase.from('jobs').select('*, resident:users!jobs_resident_id_fkey(full_name, phone)');
       
       if (mode) query = query.eq('mode', mode);
       if (status) query = query.eq('status', status);
@@ -376,6 +411,21 @@ async function startServer() {
        
        const { data, error } = await supabase.from('jobs').update(updateData).eq('id', id).select().single();
        if (error) throw error;
+
+       // Notification logic
+       try {
+         const adminClient = createClient(
+           process.env.VITE_SUPABASE_URL || "",
+           process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+         );
+         const { data: { user } } = await supabase.auth.getUser();
+         const isResident = user?.user_metadata?.role === 'resident';
+         const notifyId = isResident ? data.artisan_id : data.resident_id;
+         if (notifyId) {
+           await sendNotification(adminClient, notifyId, "Job Update", `Job ${id.slice(0,8)} status changed to ${status}`);
+         }
+       } catch (err) { console.error(err); }
+
        res.status(200).json({ data });
      } catch(e: any) {
        res.status(500).json({ error: { message: e.message } });
@@ -818,6 +868,12 @@ async function startServer() {
 
       if (error) return res.status(500).json({ error: { message: error.message } });
 
+      // Notify receiver
+      try {
+        const senderName = user.user_metadata?.full_name || 'Someone';
+        await sendNotification(adminClient, receiver_id, `New message from ${senderName}`, content.trim());
+      } catch (err) { console.error(err); }
+
       res.status(201).json({ message });
     } catch (e: any) {
       res.status(500).json({ error: { message: e.message } });
@@ -965,6 +1021,71 @@ async function startServer() {
 
       res.status(200).json({ success: true });
     } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  // POST /api/v1/notifications/subscribe
+  apiRouter.post("/notifications/subscribe", async (req, res) => {
+    try {
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      const { endpoint, keys } = req.body;
+      if (!endpoint || !keys?.p256dh || !keys?.auth) {
+        return res.status(400).json({ error: { message: "Invalid subscription payload" } });
+      }
+
+      await adminClient.from("push_subscriptions").upsert({
+        user_id: user.id,
+        endpoint,
+        p256dh: keys.p256dh,
+        auth: keys.auth
+      }, { onConflict: "endpoint" });
+
+      res.status(200).json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: { message: e.message } });
+    }
+  });
+
+  apiRouter.get("/notifications/vapid-public-key", (req, res) => {
+    res.status(200).json({ publicKey: process.env.VITE_VAPID_PUBLIC_KEY || "" });
+  });
+
+  apiRouter.get("/artisan/reports", async (req, res) => {
+    try {
+      const supabase = createAuthClient(req);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return res.status(401).json({ error: { message: "Unauthorized" } });
+
+      const adminClient = createClient(
+        process.env.VITE_SUPABASE_URL || "",
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || ""
+      );
+
+      const { data: profile } = await adminClient.from('artisan_profiles').select('*').eq('user_id', user.id).single();
+      const { count: vouches } = await adminClient.from('vouches').select('*', { count: 'exact', head: true }).eq('artisan_id', user.id);
+      const { data: jobs } = await adminClient.from('jobs').select('estimated_amount').eq('artisan_id', user.id).eq('status', 'completed');
+      
+      const earnings = jobs?.reduce((acc, job) => acc + (job.estimated_amount || 0), 0) || 0;
+      const completedJobs = profile?.total_jobs_completed || jobs?.length || 0;
+
+      res.status(200).json({
+        trust_score: profile?.average_rating || 5.0,
+        response_rate: 100, // mock calculation
+        community_vouches: vouches || 0,
+        earnings,
+        jobs_completed: completedJobs,
+        avg_time: "1h 15m" // mock
+      });
+    } catch(e: any) {
       res.status(500).json({ error: { message: e.message } });
     }
   });

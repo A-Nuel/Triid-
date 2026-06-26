@@ -11,6 +11,8 @@ import { Splash } from '@/pages/Splash';
 import { AuthPage } from '@/pages/AuthPage';
 import { ConfirmEmail } from '@/pages/ConfirmEmail';
 import { DemoRoleSelection } from '@/pages/DemoRoleSelection';
+import { PrivacyPolicy } from '@/pages/public/PrivacyPolicy';
+import { TermsOfService } from '@/pages/public/TermsOfService';
 import { Onboarding } from '@/pages/onboarding/Onboarding';
 import { RoleSelection } from '@/pages/onboarding/RoleSelection';
 import { ResidentDashboard } from '@/pages/ResidentDashboard';
@@ -42,6 +44,8 @@ import { EmergencyLiveTracking } from '@/pages/resident/EmergencyLiveTracking';
 import { ConfirmCompletion } from '@/pages/resident/ConfirmCompletion';
 import { RateAndVouch } from '@/pages/resident/RateAndVouch';
 import { ResidentMessaging } from '@/pages/resident/ResidentMessaging';
+import { MyBookings } from '@/pages/resident/MyBookings';
+import { ResidentDispatch } from '@/pages/resident/ResidentDispatch';
 import { ResidentSettingsLayout } from '@/pages/resident/ResidentSettingsLayout';
 import { SettingsHub as ResidentSettingsHub } from '@/pages/resident/SettingsHub';
 import { SettingsProfile as ResidentSettingsProfile } from '@/pages/resident/SettingsProfile';
@@ -73,6 +77,8 @@ export default function App() {
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/confirm-email" element={<ConfirmEmail />} />
           <Route path="/demo/select-role" element={<DemoRoleSelection />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms-of-service" element={<TermsOfService />} />
           
           <Route path="/onboarding/role" element={
             <ProtectedRoute>
@@ -132,6 +138,18 @@ export default function App() {
           <Route path="/resident/directory" element={
             <ProtectedRoute>
               <ArtisanDirectory />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/resident/bookings" element={
+            <ProtectedRoute>
+              <MyBookings />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/resident/dispatch/:id" element={
+            <ProtectedRoute>
+              <ResidentDispatch />
             </ProtectedRoute>
           } />
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Send, Phone, MoreVertical, Paperclip, Camera, MessageSquare, CheckCheck, Check, ShieldCheck, ArrowLeft, ExternalLink, Mic, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { uploadMedia } from '@/lib/mediaUpload';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
@@ -90,11 +90,13 @@ const getStatusColor = (status?: string) => {
 export function ResidentMessaging() {
   const { user, session } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = location.state as { prefillMessage?: string, artisanId?: string, artisanName?: string } | null;
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConv, setSelectedConv] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [jobDetail, setJobDetail] = useState<any>(null);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(locationState?.prefillMessage || '');
   const [sending, setSending] = useState(false);
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
@@ -139,53 +141,95 @@ export function ResidentMessaging() {
   }, []);
 
   const loadConversations = useCallback(async () => {
-    if (!session) return;
+    if (!session || !user) return;
     try {
-      const res = await fetch('/api/v1/messages/conversations', {
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
-      if (res.ok) {
-        const { conversations } = await res.json();
-        setConversations(conversations || []);
-        if (user) localStorage.setItem(`triid_msg_convs_${user.id}`, JSON.stringify(conversations || []));
+      const { data: allMessages } = await supabase
+        .from('messages')
+        .select('*, sender:sender_id(full_name), receiver:receiver_id(full_name)')
+        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+        .order('created_at', { ascending: false });
+
+      if (allMessages) {
+        const grouped = new Map<string, Conversation>();
+        for (const m of allMessages) {
+          if (!grouped.has(m.job_id)) {
+            const isSender = m.sender_id === user.id;
+            const partnerId = isSender ? m.receiver_id : m.sender_id;
+            const partnerName = isSender ? m.receiver?.full_name : m.sender?.full_name;
+            
+            grouped.set(m.job_id, {
+              jobId: m.job_id,
+              partnerId,
+              partnerName: partnerName || 'User',
+              lastMessage: m.content,
+              lastMessageAt: m.created_at,
+              unreadCount: 0,
+            });
+          }
+        }
+
+        const cArray = Array.from(grouped.values());
+        if (cArray.length > 0) {
+          const { data: jobs } = await supabase.from('jobs').select('id, category, description, status').in('id', cArray.map(c => c.jobId));
+          if (jobs) {
+            for (const c of cArray) {
+              c.job = jobs.find(j => j.id === c.jobId);
+            }
+          }
+        }
+        
+        if (locationState?.artisanId && locationState?.prefillMessage) {
+          const existing = cArray.find(c => c.partnerId === locationState.artisanId);
+          if (existing) {
+             setSelectedConv(existing);
+          } else {
+             const dummyConv: Conversation = {
+               jobId: 'quote_request',
+               partnerId: locationState.artisanId,
+               partnerName: locationState.artisanName || 'Artisan',
+               lastMessage: locationState.prefillMessage,
+               lastMessageAt: new Date().toISOString(),
+               unreadCount: 0,
+               job: { id: 'quote_request', category: 'other', description: 'Quote Request', status: 'pending' }
+             };
+             cArray.unshift(dummyConv);
+             setSelectedConv(dummyConv);
+          }
+        }
+
+        setConversations(cArray.sort((a,b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()));
       }
-    } catch {
-      if (user) {
-        const cached = localStorage.getItem(`triid_msg_convs_${user.id}`);
-        if (cached) { try { setConversations(JSON.parse(cached)); } catch {} }
-      }
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoadingConvs(false);
     }
-  }, [session, user]);
+  }, [session, user, locationState]);
 
   useEffect(() => {
-    if (user) {
-      const cached = localStorage.getItem(`triid_msg_convs_${user.id}`);
-      if (cached) { try { setConversations(JSON.parse(cached)); setLoadingConvs(false); } catch {} }
-    }
     loadConversations();
   }, [loadConversations]);
 
   const loadMessages = useCallback(async (conv: Conversation) => {
     if (!session) return;
     setLoadingMsgs(true);
-    const cacheKey = `triid_msg_thread_${conv.jobId}`;
+    if (conv.jobId === 'quote_request') {
+      setMessages([]);
+      setJobDetail(conv.job);
+      setLoadingMsgs(false);
+      return;
+    }
     try {
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) { const parsed = JSON.parse(cached); setMessages(parsed); setLoadingMsgs(false); }
-    } catch {}
-    try {
-      const res = await fetch(`/api/v1/messages/${conv.jobId}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
-      if (res.ok) {
-        const { messages: msgs, job } = await res.json();
-        setMessages(msgs || []);
-        setJobDetail(job);
-        localStorage.setItem(cacheKey, JSON.stringify(msgs || []));
-        setConversations(prev => prev.map(c => c.jobId === conv.jobId ? { ...c, unreadCount: 0 } : c));
-      }
+      const { data: msgs } = await supabase
+        .from('messages')
+        .select('*, sender:sender_id(id, full_name)')
+        .eq('job_id', conv.jobId)
+        .order('created_at', { ascending: true });
+      
+      const { data: job } = await supabase.from('jobs').select('*').eq('id', conv.jobId).single();
+      
+      setMessages(msgs || []);
+      setJobDetail(job);
     } catch {}
     finally { setLoadingMsgs(false); }
   }, [session]);
@@ -201,7 +245,7 @@ export function ResidentMessaging() {
   }, [messages, scrollToBottom]);
 
   useEffect(() => {
-    if (!selectedConv || !user) return;
+    if (!selectedConv || !user || selectedConv.jobId === 'quote_request') return;
     if (channelRef.current) supabase.removeChannel(channelRef.current);
 
     const channel = supabase
@@ -215,14 +259,8 @@ export function ResidentMessaging() {
         const newMsg = payload.new as Message;
         setMessages(prev => {
           if (prev.find(m => m.id === newMsg.id)) return prev;
-          const updated = [...prev, newMsg];
-          localStorage.setItem(`triid_msg_thread_${selectedConv.jobId}`, JSON.stringify(updated));
-          return updated;
+          return [...prev, newMsg];
         });
-        setConversations(prev => prev.map(c => c.jobId === selectedConv.jobId
-          ? { ...c, lastMessage: newMsg.content, lastMessageAt: newMsg.created_at }
-          : c
-        ));
         setTimeout(scrollToBottom, 50);
       })
       .subscribe();
@@ -231,44 +269,59 @@ export function ResidentMessaging() {
     return () => { supabase.removeChannel(channel); };
   }, [selectedConv, user, scrollToBottom]);
 
-  const sendMessage = async (content: string) => {
-    if (!content.trim() || !selectedConv || !session || sending) return;
+  const sendMessage = async (text?: string) => {
+    if ((!text && !input.trim()) || !selectedConv || !user) return;
+    const contentToSend = text || input.trim();
     setSending(true);
-    const tempId = `temp-${Date.now()}`;
-    const optimistic: Message = {
-      id: tempId,
-      job_id: selectedConv.jobId,
-      content: content.trim(),
-      created_at: new Date().toISOString(),
-      is_read: false,
-      sender_id: user!.id,
-      receiver_id: selectedConv.partnerId,
-      sender: { id: user!.id, full_name: 'You' },
-    };
-    setMessages(prev => [...prev, optimistic]);
-    setInput('');
-    setTimeout(scrollToBottom, 50);
 
     try {
-      const res = await fetch('/api/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({
-          job_id: selectedConv.jobId,
-          receiver_id: selectedConv.partnerId,
-          content: content.trim(),
-        }),
-      });
-      if (res.ok) {
-        const { message } = await res.json();
-        setMessages(prev => prev.map(m => m.id === tempId ? message : m));
-        setConversations(prev => prev.map(c => c.jobId === selectedConv.jobId
-          ? { ...c, lastMessage: message.content, lastMessageAt: message.created_at }
-          : c
-        ));
+      if (selectedConv.jobId === 'quote_request') {
+         // Create a job first
+         const position = await new Promise<GeolocationPosition | null>((resolve) => {
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), { timeout: 5000 });
+            } else {
+              resolve(null);
+            }
+         });
+         
+         const locStr = position 
+            ? `POINT(${position.coords.longitude} ${position.coords.latitude})` 
+            : 'POINT(3.3792 6.5244)';
+
+         const { data: job, error: jobError } = await supabase.from('jobs').insert({
+            resident_id: user.id,
+            artisan_id: selectedConv.partnerId,
+            mode: 'scheduled',
+            category: 'other',
+            description: 'Resident requested a quote.',
+            location: locStr,
+            status: 'pending'
+         }).select('id').single();
+         
+         if (jobError) throw jobError;
+         
+         // Now send message
+         await fetch('/api/v1/messages', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+           body: JSON.stringify({ job_id: job.id, receiver_id: selectedConv.partnerId, content: contentToSend })
+         });
+         
+         // Update the selected conversation ID
+         selectedConv.jobId = job.id;
+         
+      } else {
+         await fetch('/api/v1/messages', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+           body: JSON.stringify({ job_id: selectedConv.jobId, receiver_id: selectedConv.partnerId, content: contentToSend })
+         });
       }
-    } catch {
-      // Offline — keep optimistic
+      if (!text) setInput('');
+      scrollToBottom();
+    } catch (err) {
+      console.error(err);
     } finally {
       setSending(false);
     }

@@ -8,7 +8,7 @@ import { isDemoAccount } from "@/lib/demoUtils";
 export function EmergencyMatching() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [jobStatus, setJobStatus] = useState<string>("pending");
   const [artisan, setArtisan] = useState<any>(null);
   const [estimatedAmount, setEstimatedAmount] = useState<number | null>(null);

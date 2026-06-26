@@ -39,39 +39,58 @@ export function WaitingConfirmation() {
     <div className="flex flex-col min-h-screen bg-surface-bright max-w-2xl mx-auto p-space-6 md:p-space-8 w-full">
       <button 
         onClick={() => navigate('/artisan/dashboard')}
-        className="text-primary font-medium flex items-center gap-2 mb-space-8 hover:underline w-fit"
+        className="text-gray-600 font-medium flex items-center gap-2 mb-8 hover:text-gray-900 transition-colors w-fit"
       >
-        <ArrowLeft className="w-5 h-5" /> Back to My Jobs
+        <ArrowLeft className="w-4 h-4" /> Job Details
       </button>
 
-      <div className="bg-white border flex-1 border-surface-variant rounded-2xl p-space-8 md:p-space-12 text-center flex flex-col items-center justify-center shadow-sm h-fit my-auto">
-        <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mb-space-6 border-8 border-green-50/50">
-          <CheckCircle2 className="w-12 h-12 text-green-600" />
+      <div className="bg-white rounded-2xl shadow-sm border-l-4 border-l-orange-500 border border-gray-100 overflow-hidden relative mb-8">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500"></div>
+        <div className="p-8 md:p-12 flex flex-col items-center text-center">
+          <div className="bg-orange-50 text-orange-600 px-4 py-1.5 rounded-md text-xs font-bold tracking-widest uppercase mb-6 flex items-center gap-2 border border-orange-100">
+            <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
+            Waiting for Confirmation
+          </div>
+          <p className="text-gray-600 font-medium mb-2">Job Complete. Total Payout Scheduled:</p>
+          <h2 className="text-5xl md:text-6xl font-bold text-[#0f2c38] mb-10">₦{job.estimated_amount?.toLocaleString() || '15,000'}</h2>
+          
+          <div className="bg-[#f0f6fa] rounded-xl p-5 border border-[#d6e4ef] w-full max-w-lg">
+            <div className="flex items-start gap-3 mb-4 text-left">
+              <div className="w-5 h-5 rounded-full border-2 border-[#1b4f63] text-[#1b4f63] flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs">i</div>
+              <p className="text-[#3c5a6b] text-sm leading-relaxed">
+                Payment releases once the resident confirms the job is satisfactory, or automatically after 48 hours.
+              </p>
+            </div>
+            <div className="bg-white border border-[#d6e4ef] rounded-lg px-4 py-3 flex justify-between items-center text-sm font-medium">
+              <span className="text-gray-600">Auto-release in:</span>
+              <span className="text-orange-600 flex items-center gap-1.5">
+                <Clock className="w-4 h-4" /> {formatTime(timeLeft)}
+              </span>
+            </div>
+          </div>
         </div>
-        
-        <h1 className="text-3xl font-bold text-primary mb-2">Job Complete</h1>
-        <p className="text-on-surface-variant max-w-sm mx-auto mb-space-8">
-          The resident has been notified to confirm the completion of this service request.
-        </p>
+      </div>
 
-        <div className="bg-[#f8fafc] w-full rounded-xl p-space-6 border border-surface-variant mb-space-8">
-          <p className="text-sm font-bold text-on-surface-variant uppercase tracking-wider mb-2">Total Payout Scheduled</p>
-          <p className="text-4xl font-bold text-primary mb-space-2">₦{job.estimated_amount || '0.00'}</p>
-          <p className="text-xs text-on-surface-variant">Includes labor and approved material advances</p>
-        </div>
-
-        <div className="flex items-center justify-center gap-2 text-on-surface-variant bg-surface-variant/30 px-space-6 py-space-3 rounded-full border border-surface-variant">
-          <Clock className="w-4 h-4" />
-          <span className="text-sm font-medium">Auto-release in <span className="font-mono font-bold text-primary ml-1">{formatTime(timeLeft)}</span></span>
+      <div className="mb-8">
+        <h3 className="font-bold text-gray-900 mb-3 text-lg">Job Summary</h3>
+        <div className="bg-[#f0f4f8] rounded-xl p-5 border border-gray-200 flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-[#e0eaf3] text-[#1b4f63] rounded-lg flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+            </div>
+            <div>
+              <h4 className="font-bold text-gray-900 capitalize">{job.category} - {job.description || 'Repair'}</h4>
+              <p className="text-sm text-gray-500">Unit Pending • Resident: {job.resident?.full_name?.split(' ')[0] || 'Unknown'}</p>
+            </div>
+          </div>
+          <button className="text-sm font-bold text-[#1b4f63] hover:underline">View Details</button>
         </div>
       </div>
       
-      <div className="py-space-6">
-        <button 
-          onClick={() => navigate('/artisan/dashboard')}
-          className="w-full bg-[#1b4f63] text-white py-4 rounded-xl font-bold text-lg hover:bg-[#153e4d] shadow-md transition-transform active:scale-[0.98]"
-        >
-          Return to Dashboard
+      <div className="pb-12 text-center flex flex-col items-center">
+        <button className="text-sm font-bold text-gray-500 hover:text-gray-700 flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full border border-gray-500 text-gray-500 flex items-center justify-center shrink-0 font-bold text-[10px]">?</div>
+          Issue with confirmation? Contact Support
         </button>
       </div>
 
